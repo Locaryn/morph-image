@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.3.0";
+const VERSION: &str = "1.4.0";
 
 #[tokio::main]
 async fn main() {
@@ -90,10 +90,10 @@ fn tools_list() -> Value {
             },
             {
                 "name": "generate_image",
-                "description": "Génère ou transforme localement une image avec le moteur du plugin.",
+                "description": "Génère ou transforme localement une image avec le moteur du plugin. Omettez model pour utiliser le premier checkpoint installé.",
                 "inputSchema": {
                     "type": "object",
-                    "required": ["prompt", "model"],
+                    "required": ["prompt"],
                     "properties": {
                         "prompt": { "type": "string" },
                         "negative_prompt": { "type": "string" },
@@ -128,7 +128,17 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
         "generate_image" => {
             let request: ImageGenRequest = serde_json::from_value(args)
                 .map_err(|error| format!("paramètres de génération invalides : {error}"))?;
-            Ok(serde_json::to_value(generate_image(request).await?).map_err(|error| error.to_string())?)
+            let result = generate_image(request).await?;
+            let mut value = serde_json::to_value(&result).map_err(|error| error.to_string())?;
+            value["artifacts"] = json!(result
+                .paths
+                .iter()
+                .map(|path| json!({
+                    "kind": "image_png",
+                    "path": path.to_string_lossy()
+                }))
+                .collect::<Vec<_>>());
+            Ok(value)
         }
         _ => Err(format!("outil image inconnu : {name}")),
     }

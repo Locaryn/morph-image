@@ -1,78 +1,589 @@
-/* plugin-image-gen UI bundle: framework-free custom elements loaded by Locaryn. */
+/* plugin-image-gen UI bundle: complete v0.3.17 styled interface for Locaryn Studio */
 (function () {
   "use strict";
 
   function bridge() {
-    return window.locaryn || window.LocarynPluginAPI;
+    return window.locaryn || window.LocarynPluginAPI || null;
   }
 
   var CATALOG = [
     {
       id: "z-image",
-      label: "Z-Image Turbo (Q8)",
-      match: /z[_-]?image/i,
+      label: "Z-Image Turbo",
+      family: "Z-Image",
+      note: "Rapide, 1024px, excellent rendu photo et anime",
       sources: [
         "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
         "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors",
         "https://huggingface.co/second-state/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
       ],
-      steps: 8,
-      cfg: 1
-    },
-    {
-      id: "sd15",
-      label: "Stable Diffusion 1.5 (Q4)",
-      match: /stable[-_]?diffusion|sd15/i,
-      sources: ["https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf"],
-      steps: 20,
-      cfg: 7
-    },
-    {
-      id: "sdxl",
-      label: "SDXL Turbo (Q4)",
-      match: /sdxl/i,
-      sources: ["https://huggingface.co/second-state/SDXL-Turbo-GGUF/resolve/main/sdxl-turbo-Q4_0.gguf"],
-      steps: 6,
-      cfg: 7
+      defaultSteps: 8,
+      defaultCfg: 1.0
     },
     {
       id: "flux",
-      label: "FLUX.1 Schnell (Q4)",
-      match: /flux/i,
-      sources: ["https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_0.gguf", "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors"],
-      steps: 4,
-      cfg: 1
+      label: "FLUX.1 Schnell",
+      family: "FLUX.1",
+      note: "Haute fidélité, rendu typographique et textures",
+      sources: [
+        "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_0.gguf",
+        "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors"
+      ],
+      defaultSteps: 4,
+      defaultCfg: 1.0
+    },
+    {
+      id: "sdxl",
+      label: "SDXL Turbo",
+      family: "SDXL",
+      note: "1024px temps réel en quelques étapes",
+      sources: [
+        "https://huggingface.co/second-state/SDXL-Turbo-GGUF/resolve/main/sdxl-turbo-Q4_0.gguf"
+      ],
+      defaultSteps: 6,
+      defaultCfg: 7.0
+    },
+    {
+      id: "sd15",
+      label: "Stable Diffusion 1.5",
+      family: "SD 1.5",
+      note: "Ultra-léger, idéal pour GPU modestes et CPU",
+      sources: [
+        "https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf"
+      ],
+      defaultSteps: 20,
+      defaultCfg: 7.0
     }
   ];
 
-  var CSS = ""
-    + ":host{display:block;width:100%;color:var(--text,#e2e8f0);font-family:inherit}"
-    + ".ig-card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box}"
-    + ".ig-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px}.ig-sub,.ig-muted{color:#94a3b8;font-size:11px}.ig-sub{margin-top:3px}"
-    + ".ig-label{color:#b7c2d2;font-size:12px;font-weight:600;display:block;margin-bottom:6px}.ig-field{display:flex;flex-direction:column;gap:4px}"
-    + "textarea,select,input[type=text],input[type=number]{width:100%;box-sizing:border-box;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);color:inherit;border-radius:8px;padding:9px 10px;font:inherit;font-size:13px;outline:none}"
-    + "textarea:focus,select:focus,input:focus{border-color:#60a5fa}textarea{resize:vertical;min-height:78px}.ig-row{display:flex;gap:10px;flex-wrap:wrap}.ig-row>.ig-field{flex:1 1 120px}"
-    + ".ig-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}button{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:inherit;border-radius:8px;padding:8px 12px;font:inherit;font-size:12px;cursor:pointer}button:hover{background:rgba(255,255,255,.12)}button:disabled{opacity:.55;cursor:not-allowed}.ig-primary{background:#3b82f6;border-color:#3b82f6;color:#fff;font-weight:700}.ig-primary:hover{background:#2563eb}"
-    + ".ig-error{color:#fca5a5;background:rgba(127,29,29,.25);border:1px solid rgba(248,113,113,.35);border-radius:8px;padding:9px;font-size:12px;white-space:pre-wrap}.ig-ok{color:#86efac;font-size:12px}"
-    + ".ig-drop{border:1px dashed rgba(255,255,255,.25);border-radius:8px;padding:14px;text-align:center;color:#94a3b8;font-size:12px;cursor:pointer}.ig-drop img{max-height:130px;max-width:100%;border-radius:6px;display:block;margin:0 auto 8px;object-fit:contain}"
-    + ".ig-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.ig-thumb{border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.25);border-radius:8px;overflow:hidden;cursor:zoom-in}.ig-thumb img{width:100%;height:145px;object-fit:cover;display:block}.ig-thumb div{padding:6px 8px;font-size:10px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-    + ".ig-install{display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(59,130,246,.09);border:1px solid rgba(96,165,250,.25);padding:10px;border-radius:8px;font-size:12px}"
-    + ".ig-modal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}.ig-modal-box{position:relative;max-width:min(92vw,1100px);max-height:92vh;display:flex;flex-direction:column;align-items:center;gap:10px}.ig-modal img{max-width:92vw;max-height:82vh;object-fit:contain;border-radius:8px;box-shadow:0 12px 50px #000}.ig-modal-bar{display:flex;gap:7px;align-items:center;background:rgba(20,25,35,.94);border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px}.ig-close{font-size:18px;line-height:1;padding:5px 9px}.ig-floating{position:fixed;right:16px;bottom:64px;width:min(560px,calc(100vw - 32px));max-height:80vh;overflow:auto;z-index:2147482000;box-shadow:0 18px 70px rgba(0,0,0,.55)}.ig-floating .ig-card{background:#171b25}";
+  var RATIOS = [
+    { label: "1:1 (Carré)", w: 1024, h: 1024 },
+    { label: "16:9 (Paysage)", w: 1280, h: 720 },
+    { label: "9:16 (Portrait)", w: 720, h: 1280 },
+    { label: "4:3 (Photo)", w: 1024, h: 768 },
+    { label: "3:4 (Affiche)", w: 768, h: 1024 }
+  ];
 
-  function jsonValue(value) {
+  var CSS = `
+:host {
+  display: block;
+  width: 100%;
+  color: var(--text, #e8edf5);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+* {
+  box-sizing: border-box;
+}
+.img-gen-inline {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0;
+}
+.img-gen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius, 12px);
+}
+.img-gen-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.img-gen-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--accent-rgb, 110, 168, 254), 0.15);
+  color: var(--accent, #6ea8fe);
+  border-radius: 10px;
+}
+.img-gen-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #e8edf5);
+}
+.img-gen-subtitle {
+  font-size: 12px;
+  color: var(--text-faint, #96a3b8);
+  margin-top: 2px;
+}
+.img-gen-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(101, 211, 145, 0.12);
+  color: #65d391;
+  border: 1px solid rgba(101, 211, 145, 0.25);
+}
+.img-gen-badge.empty {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.img-gen-tabs {
+  display: flex;
+  gap: 8px;
+}
+.img-gen-tab {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-dim, #94a3b8);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.img-gen-tab:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.07));
+  color: var(--text, #e8edf5);
+}
+.img-gen-tab-active {
+  background: rgba(var(--accent-rgb, 110, 168, 254), 0.12);
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+.img-gen-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius, 12px);
+  padding: 16px;
+}
+.img-gen-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.img-gen-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.img-gen-val {
+  font-weight: 600;
+  color: var(--accent, #6ea8fe);
+  margin-left: 4px;
+}
+.img-gen-select, .img-gen-input, .img-gen-textarea {
+  width: 100%;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg, rgba(0, 0, 0, 0.25));
+  color: inherit;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.img-gen-select {
+  appearance: auto;
+}
+.img-gen-textarea {
+  min-height: 90px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.img-gen-select:focus, .img-gen-input:focus, .img-gen-textarea:focus {
+  border-color: var(--accent, #6ea8fe);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 110, 168, 254), 0.15);
+}
+.img-gen-ratios {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.img-gen-ratio-btn {
+  padding: 6px 12px;
+  background: var(--surface, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-xs, 6px);
+  color: var(--text-dim, #94a3b8);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.img-gen-ratio-btn:hover {
+  border-color: var(--accent, #6ea8fe);
+  color: var(--text, #e8edf5);
+}
+.img-gen-ratio-btn.active {
+  background: rgba(var(--accent-rgb, 110, 168, 254), 0.15);
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+.img-gen-dropzone {
+  border: 2px dashed var(--border, rgba(255, 255, 255, 0.2));
+  border-radius: var(--radius-sm, 8px);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  background: rgba(0, 0, 0, 0.15);
+}
+.img-gen-dropzone:hover {
+  border-color: var(--accent, #6ea8fe);
+  background: rgba(var(--accent-rgb, 110, 168, 254), 0.05);
+}
+.img-gen-dropzone-filled {
+  border-style: solid;
+  padding: 12px;
+}
+.img-gen-preview-img {
+  max-height: 160px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
+}
+.img-gen-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 8px);
+  padding: 10px 14px;
+  color: var(--text-dim, #94a3b8);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+.img-gen-advanced-toggle:hover {
+  color: var(--text, #e8edf5);
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.2));
+}
+.img-gen-advanced-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 8px);
+}
+.img-gen-adv-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.img-gen-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.img-gen-catalog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.img-gen-catalog-copy strong {
+  display: block;
+  font-size: 13px;
+  color: var(--text, #e8edf5);
+}
+.img-gen-catalog-copy span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-faint, #96a3b8);
+}
+.img-gen-install-btn {
+  padding: 6px 14px;
+  background: rgba(var(--accent-rgb, 110, 168, 254), 0.15);
+  border: 1px solid var(--accent, #6ea8fe);
+  border-radius: var(--radius-xs, 6px);
+  color: var(--accent, #6ea8fe);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.img-gen-install-btn:hover {
+  background: var(--accent, #6ea8fe);
+  color: #08101d;
+}
+.img-gen-output-area {
+  min-height: 0;
+}
+.img-gen-generating-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.img-gen-placeholder {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  border-radius: var(--radius, 12px);
+  overflow: hidden;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.img-gen-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(var(--accent-rgb, 110, 168, 254), 0.08) 40%,
+    rgba(var(--accent-rgb, 110, 168, 254), 0.16) 50%,
+    rgba(var(--accent-rgb, 110, 168, 254), 0.08) 60%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.img-gen-pulse-ring {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border: 2px solid rgba(var(--accent-rgb, 110, 168, 254), 0.4);
+  border-radius: 50%;
+  animation: pulseRing 2s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+}
+@keyframes pulseRing {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.img-gen-generating-label {
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text, #e8edf5);
+}
+.img-gen-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 999px;
+  overflow: hidden;
+}
+.img-gen-progress-fill {
+  height: 100%;
+  background: var(--accent, #6ea8fe);
+  border-radius: 999px;
+  animation: shimmer 1.5s infinite linear;
+}
+.img-gen-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface, rgba(255, 255, 255, 0.035));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius, 12px);
+}
+.img-gen-result-img {
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.2));
+  object-fit: contain;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  cursor: zoom-in;
+}
+.img-gen-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.img-gen-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--accent, #6ea8fe);
+  border: 1px solid var(--accent, #6ea8fe);
+  border-radius: var(--radius-sm, 8px);
+  color: #08101d;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb, 110, 168, 254), 0.3);
+}
+.img-gen-generate-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.img-gen-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.img-gen-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.img-gen-gallery-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.img-gen-gallery-card:hover {
+  border-color: var(--accent, #6ea8fe);
+}
+.img-gen-gallery-card img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+.img-gen-gallery-info {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-faint, #96a3b8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.img-gen-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+}
+.img-gen-modal-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: min(94vw, 1100px);
+  max-height: 94vh;
+}
+.img-gen-modal-img {
+  max-width: 94vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.img-gen-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface, #18202f);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+}
+.img-gen-btn-ghost {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  color: var(--text, #e8edf5);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.img-gen-btn-ghost:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  border-color: var(--accent, #6ea8fe);
+  color: var(--accent, #6ea8fe);
+}
+.img-gen-error {
+  padding: 12px 14px;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 8px;
+  color: #ffb1b1;
+  font-size: 13px;
+}
+.img-gen-notice {
+  padding: 12px 14px;
+  background: rgba(101, 211, 145, 0.12);
+  border: 1px solid rgba(101, 211, 145, 0.3);
+  border-radius: 8px;
+  color: #8ee2aa;
+  font-size: 13px;
+}
+`;
+
+  function parseValue(value) {
     if (typeof value !== "string") return value || {};
-    try {
-      var parsed = JSON.parse(value);
-      return typeof parsed === "string" ? jsonValue(parsed) : parsed;
-    } catch (_) {
-      return { text: value };
+    var current = value;
+    for (var i = 0; i < 3; i += 1) {
+      try {
+        var parsed = JSON.parse(current);
+        if (typeof parsed !== "string") return parsed || {};
+        current = parsed;
+      } catch (_) {
+        return { text: value };
+      }
     }
+    return { text: value };
   }
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function toast(message, type) {
@@ -82,11 +593,12 @@
 
   function invoke(tool, input) {
     var b = bridge();
-    if (!b || !b.tools || !b.tools.invoke) return Promise.reject(new Error("Le pont Locaryn n'est pas disponible."));
-    return Promise.resolve(b.tools.invoke(tool, input)).then(function (value) {
-      var parsed = jsonValue(value);
-      if (parsed && parsed.error) throw new Error(parsed.error.message || parsed.error);
-      return parsed;
+    if (!b || !b.tools || !b.tools.invoke) {
+      return Promise.reject(new Error("Le pont MCP de l'extension n'est pas disponible."));
+    }
+    return Promise.resolve(b.tools.invoke(tool, input)).then(parseValue).then(function (value) {
+      if (value && value.error) throw new Error(value.error.message || value.error);
+      return value;
     });
   }
 
@@ -94,6 +606,18 @@
     var b = bridge();
     if (b && b.files && b.files.assetUrl) return b.files.assetUrl(path);
     return path;
+  }
+
+  function normalizeModels(result) {
+    var raw = result && Array.isArray(result.models) ? result.models : [];
+    return raw.map(function (item) {
+      if (typeof item === "string") return { name: item, family: "diffusion" };
+      return {
+        name: String(item.name || item.path || ""),
+        family: String(item.family || "diffusion"),
+        missing: Array.isArray(item.missing) ? item.missing : []
+      };
+    }).filter(function (item) { return item.name; });
   }
 
   function saveImage(url) {
@@ -116,220 +640,516 @@
     });
   }
 
-  // The host does not classify image prompts. The extension claims only clear
-  // visual requests; normal questions continue to Locaryn's native agent.
-  function looksLikeImageRequest(text) {
-    var value = String(text || "");
-    return /(?:\b(?:g[ée]n[èe]re(?:r|z)?|cr[ée]e(?:r|z)?|dessine(?:r|z)?|fabrique(?:r|z)?|illustr(?:e|er|ez)|generate|create|draw|paint|make)\b[\s\S]{0,100}\b(?:image|photo|photographie|dessin|illustration|logo|ic[oô]ne|visuel|picture|artwork)\b)|(?:^|\s)(?:image|photo|logo|ic[oô]ne|illustration|visuel|picture)\s*:/i.test(value);
-  }
-
-  function catalogFor(model) {
-    return CATALOG.find(function (entry) { return entry.match.test(model || ""); }) || CATALOG[0];
-  }
-
-  class ImagePanel extends HTMLElement {
+  class ImageGenPanel extends HTMLElement {
     constructor() {
       super();
-      this._context = {};
+      this.mode = "txt2img"; // "txt2img" | "img2img" | "edit"
       this.models = [];
+      this.selectedModel = "";
+      this.prompt = "";
+      this.negativePrompt = "";
+      this.width = 1024;
+      this.height = 1024;
+      this.steps = 20;
+      this.cfgScale = 7.0;
+      this.sourceImage = null;
+      this.showAdvanced = false;
+      this.uncensored = false;
+      this.isGenerating = false;
+      this.isLoadingModels = true;
+      this.error = null;
+      this.notice = null;
+      this.currentResult = null;
       this.gallery = [];
-      this.busy = false;
-      this.error = "";
-      this.notice = "";
-      this.sourceImage = "";
       this.lightbox = null;
-      this._ready = null;
       this.attachShadow({ mode: "open" });
     }
 
-    set context(value) { this._context = value || {}; if (this.isConnected) this.render(); }
-    get context() { return this._context; }
-
     connectedCallback() {
       this.render();
-      this._ready = this.refreshModels();
+      this.refreshModels();
     }
 
     refreshModels() {
       var self = this;
+      this.isLoadingModels = true;
+      this.updateState();
       return invoke("list_image_models", {}).then(function (result) {
-        self.models = Array.isArray(result.models) ? result.models : [];
-        self.error = "";
-        self.render();
+        self.models = normalizeModels(result);
+        if (!self.models.some(function (m) { return m.name === self.selectedModel; })) {
+          self.selectedModel = self.models[0] ? self.models[0].name : "";
+        }
+        self.error = null;
       }).catch(function (error) {
         self.error = String(error.message || error);
+      }).then(function () {
+        self.isLoadingModels = false;
         self.render();
       });
     }
 
-    install(entry) {
+    installModel(entry) {
       var self = this;
-      if (!entry || this.busy) return Promise.resolve();
-      this.busy = true;
-      this.error = "";
-      this.notice = "Téléchargement du modèle et de ses compagnons…";
+      if (!entry || this.isGenerating) return;
+      this.isGenerating = true;
+      this.notice = "Téléchargement de " + entry.label + " en cours…";
+      this.error = null;
       this.render();
       return invoke("install_image_model", { sources: entry.sources }).then(function () {
-        self.notice = entry.label + " est installé.";
+        self.notice = entry.label + " a été installé avec succès !";
+        toast(entry.label + " installé", "success");
         return self.refreshModels();
-      }).then(function () {
-        toast("Modèle image installé", "success");
       }).catch(function (error) {
         self.error = String(error.message || error);
+        toast(self.error, "error");
       }).then(function () {
-        self.busy = false;
+        self.isGenerating = false;
         self.render();
       });
     }
 
     generate() {
-      var prompt = this.shadowRoot.querySelector("#ig-prompt");
-      return this.generatePrompt(prompt ? prompt.value : "");
-    }
-
-    generatePrompt(prompt) {
       var self = this;
-      if (this.busy) return Promise.resolve();
-      var ready = this._ready || Promise.resolve();
-      return ready.then(function () {
-        var root = self.shadowRoot;
-        prompt = String(prompt || "").trim();
-        var modelInput = root.querySelector("#ig-model");
-        var model = modelInput ? modelInput.value : "";
-        if (!prompt) throw new Error("Écrivez un prompt.");
-        if (!model || self.models.indexOf(model) < 0) throw new Error("Installez puis sélectionnez un modèle de diffusion.");
-        var width = Number((root.querySelector("#ig-width") || {}).value || 1024);
-        var height = Number((root.querySelector("#ig-height") || {}).value || 1024);
-        var steps = Number((root.querySelector("#ig-steps") || {}).value || 20);
-        var cfg = Number((root.querySelector("#ig-cfg") || {}).value || 7);
-        var negative = ((root.querySelector("#ig-negative") || {}).value || "").trim();
-        var uncensored = !!(root.querySelector("#ig-uncensored") || {}).checked;
-        self.busy = true;
-        self.error = "";
-        self.notice = "stable-diffusion.cpp travaille localement…";
-        self.render();
-        return invoke("generate_image", {
+      var prompt = this.prompt.trim();
+      if (!prompt) {
+        this.error = "Veuillez saisir une description (prompt) pour générer l'image.";
+        this.render();
+        return;
+      }
+      if (!this.selectedModel && this.models.length === 0) {
+        this.error = "Aucun modèle de diffusion n'est installé. Installez-en un ci-dessous.";
+        this.render();
+        return;
+      }
+      if (this.mode === "img2img" && !this.sourceImage) {
+        this.error = "Veuillez sélectionner une image source pour le mode Image → Image.";
+        this.render();
+        return;
+      }
+
+      this.isGenerating = true;
+      this.error = null;
+      this.notice = "Génération de l'image en cours sur votre machine…";
+      this.render();
+
+      var payload = {
+        prompt: prompt,
+        model: self.selectedModel || undefined,
+        width: self.width,
+        height: self.height,
+        steps: self.steps,
+        cfg_scale: self.cfgScale,
+        negative_prompt: self.negativePrompt.trim() || undefined,
+        input_image: self.sourceImage || undefined,
+        uncensored: self.uncensored,
+        variants: 1
+      };
+
+      return invoke("generate_image", payload).then(function (result) {
+        var paths = Array.isArray(result.paths) ? result.paths : [];
+        if (!paths.length) throw new Error("Le moteur n'a retourné aucun fichier image.");
+        var imageObj = {
+          path: paths[0],
+          url: assetUrl(paths[0]),
           prompt: prompt,
-          model: model,
-          width: Math.max(64, Math.min(2048, width)),
-          height: Math.max(64, Math.min(2048, height)),
-          steps: Math.max(1, Math.min(100, steps)),
-          cfg_scale: Math.max(.1, Math.min(30, cfg)),
-          negative_prompt: negative || undefined,
-          input_image: self.sourceImage || undefined,
-          uncensored: uncensored,
-          variants: 1
-        }).then(function (result) {
-          var paths = Array.isArray(result.paths) ? result.paths : [];
-          if (!paths.length) throw new Error("Le moteur n'a retourné aucune image.");
-          var images = paths.map(function (path) { return { path: path, url: assetUrl(path), prompt: prompt }; });
-          self.gallery = images.concat(self.gallery).slice(0, 12);
-          self.notice = "Image générée et ajoutée au chat actif.";
-          var b = bridge();
-          if (b && b.chat && b.chat.appendAssistantMessage) {
-            var markdown = "Image générée — « " + prompt + " »\n\n" + images.map(function (image) { return "![](" + image.url + ")"; }).join("\n");
-            return b.chat.appendAssistantMessage(markdown);
-          }
-        }).then(function () {
-          toast("Image générée avec succès", "success");
-        }).catch(function (error) {
-          self.error = String(error.message || error);
-          toast(self.error, "error");
-        }).then(function () {
-          self.busy = false;
-          self.render();
-        });
+          date: new Date().toLocaleTimeString()
+        };
+        self.currentResult = imageObj;
+        self.gallery = [imageObj].concat(self.gallery).slice(0, 16);
+        self.notice = "Image générée avec succès !";
+        toast("Image générée", "success");
+
+        var b = bridge();
+        var sessionId = b && b.chat && b.chat.getSessionId ? b.chat.getSessionId() : null;
+        if (sessionId && b.chat.appendAssistantMessage) {
+          var markdown = "<!--locaryn-image:" + JSON.stringify(paths[0]) + "-->\n![](" + imageObj.url + ")";
+          b.chat.appendAssistantMessage(markdown).catch(function () {});
+        }
       }).catch(function (error) {
         self.error = String(error.message || error);
-        self.busy = false;
-        self.render();
         toast(self.error, "error");
+      }).then(function () {
+        self.isGenerating = false;
+        self.render();
       });
     }
 
-    openLightbox(image) { this.lightbox = image; this.render(); }
-
-    renderLightbox() {
-      var self = this;
-      if (!this.lightbox) return "";
-      return "<div class=\"ig-modal\" id=\"ig-lightbox\" role=\"dialog\" aria-modal=\"true\"><div class=\"ig-modal-box\"><img src=\"" + escapeHtml(this.lightbox.url) + "\" alt=\"Image agrandie\"><div class=\"ig-modal-bar\"><button id=\"ig-save\">⬇ Enregistrer sous</button><button id=\"ig-copy\">Copier l'image</button><button class=\"ig-close\" id=\"ig-close\" aria-label=\"Fermer\">×</button></div></div></div>";
+    updateState() {
+      var root = this.shadowRoot;
+      if (!root) return;
+      var promptEl = root.querySelector("#ig-prompt");
+      if (promptEl) this.prompt = promptEl.value;
+      var negEl = root.querySelector("#ig-negative");
+      if (negEl) this.negativePrompt = negEl.value;
+      var modelEl = root.querySelector("#ig-model");
+      if (modelEl && modelEl.value) this.selectedModel = modelEl.value;
     }
 
     render() {
       var self = this;
       if (!this.shadowRoot) return;
-      var current = ((this.shadowRoot.querySelector("#ig-model") || {}).value) || this.models[0] || "";
-      var entry = catalogFor(current);
-      var options = this.models.map(function (model) { return "<option value=\"" + escapeHtml(model) + "\">" + escapeHtml(model) + "</option>"; }).join("");
-      var source = this.sourceImage ? "<img src=\"" + escapeHtml(this.sourceImage) + "\" alt=\"Image source\"><span>Cliquer pour remplacer l'image source</span>" : "Cliquer pour ajouter une image source (facultatif, img2img)";
-      this.shadowRoot.innerHTML = "<style>" + CSS + "</style><div class=\"ig-card\"><div><div class=\"ig-title\">✨ Génération d'images — plugin-image-gen</div><div class=\"ig-sub\">Moteur, modèles, interface et insertion dans le chat appartiennent à cette extension.</div></div><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-model\">Modèle de diffusion</label><select id=\"ig-model\">" + (options || "<option value=\"\">Aucun modèle installé</option>") + "</select></div>" + (!this.models.length ? "<div class=\"ig-install\"><span>Choisissez un modèle prêt à télécharger.</span><button id=\"ig-install\" class=\"ig-primary\">Installer Z-Image</button></div>" : "") + "<div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-prompt\">Prompt</label><textarea id=\"ig-prompt\" placeholder=\"Une peinture à l'huile d'un avion au-dessus des Alpes, lumière dorée…\"></textarea></div><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-negative\">Prompt négatif <span class=\"ig-muted\">(facultatif)</span></label><input id=\"ig-negative\" type=\"text\" placeholder=\"flou, watermark, mauvaise anatomie…\"></div><div class=\"ig-drop\" id=\"ig-source\">" + source + "</div><input id=\"ig-file\" type=\"file\" accept=\"image/*\" hidden><div class=\"ig-row\"><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-width\">Largeur</label><input id=\"ig-width\" type=\"number\" min=\"64\" max=\"2048\" step=\"64\" value=\"1024\"></div><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-height\">Hauteur</label><input id=\"ig-height\" type=\"number\" min=\"64\" max=\"2048\" step=\"64\" value=\"1024\"></div><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-steps\">Steps</label><input id=\"ig-steps\" type=\"number\" min=\"1\" max=\"100\" value=\"" + (entry.steps || 20) + "\"></div><div class=\"ig-field\"><label class=\"ig-label\" for=\"ig-cfg\">CFG</label><input id=\"ig-cfg\" type=\"number\" min=\"0.1\" max=\"30\" step=\"0.1\" value=\"" + (entry.cfg || 7) + "\"></div></div><label class=\"ig-muted\"><input id=\"ig-uncensored\" type=\"checkbox\"> Mode sans limite — j'assume le contenu généré</label><div class=\"ig-actions\"><button id=\"ig-generate\" class=\"ig-primary\" " + (this.busy ? "disabled" : "") + ">" + (this.busy ? "Génération…" : "Générer l'image") + "</button><span class=\"ig-muted\">" + (this.busy ? "Ne fermez pas Locaryn pendant le calcul." : "Les poids restent sur cette machine.") + "</span></div>" + (this.notice ? "<div class=\"ig-ok\">" + escapeHtml(this.notice) + "</div>" : "") + (this.error ? "<div class=\"ig-error\">" + escapeHtml(this.error) + "</div>" : "") + (this.gallery.length ? "<div><div class=\"ig-label\">Galerie de cette session</div><div class=\"ig-gallery\">" + this.gallery.map(function (image, index) { return "<div class=\"ig-thumb\" data-image-index=\"" + index + "\"><img src=\"" + escapeHtml(image.url) + "\" alt=\"" + escapeHtml(image.prompt) + "\"><div>" + escapeHtml(image.prompt.slice(0, 52)) + "</div></div>"; }).join("") + "</div></div>" : "") + "</div>" + this.renderLightbox();
-      var select = this.shadowRoot.querySelector("#ig-model");
-      if (select && current) select.value = current;
-      var generate = this.shadowRoot.querySelector("#ig-generate");
-      if (generate) generate.addEventListener("click", function () { self.generate(); });
-      var install = this.shadowRoot.querySelector("#ig-install");
-      if (install) install.addEventListener("click", function () { self.install(CATALOG[0]); });
-      this.shadowRoot.querySelectorAll("[data-image-index]").forEach(function (node) { node.addEventListener("click", function () { self.openLightbox(self.gallery[Number(node.getAttribute("data-image-index"))]); }); });
-      var close = this.shadowRoot.querySelector("#ig-close");
-      if (close) close.addEventListener("click", function () { self.lightbox = null; self.render(); });
-      var modal = this.shadowRoot.querySelector("#ig-lightbox");
-      if (modal) modal.addEventListener("click", function (event) { if (event.target === modal) { self.lightbox = null; self.render(); } });
-      var save = this.shadowRoot.querySelector("#ig-save");
-      if (save) save.addEventListener("click", function () { if (self.lightbox) saveImage(self.lightbox.url); });
-      var copy = this.shadowRoot.querySelector("#ig-copy");
-      if (copy) copy.addEventListener("click", function () { if (self.lightbox) copyImage(self.lightbox.url).then(function () { toast("Image copiée", "success"); }).catch(function (error) { toast("Copie impossible : " + (error.message || error), "error"); }); });
-      var drop = this.shadowRoot.querySelector("#ig-source");
-      var file = this.shadowRoot.querySelector("#ig-file");
-      if (drop && file) {
-        drop.addEventListener("click", function () { file.click(); });
-        file.addEventListener("change", function () { var picked = file.files && file.files[0]; if (!picked) return; var reader = new FileReader(); reader.onload = function () { self.sourceImage = reader.result; self.render(); }; reader.readAsDataURL(picked); });
-      }
-    }
-  }
 
-  class ImageButton extends HTMLElement {
-    constructor() {
-      super();
-      this.context = {};
-      this.open = false;
-      this._unsubscribe = null;
-      this.attachShadow({ mode: "open" });
+      var current = this.selectedModel || (this.models[0] && this.models[0].name) || "";
+      var isInstalled = this.models.length > 0;
+
+      var optionsHtml = this.models.map(function (m) {
+        var missingText = m.missing && m.missing.length ? " (" + m.missing.length + " compagnon manquant)" : "";
+        return "<option value=\"" + escapeHtml(m.name) + "\"" + (m.name === current ? " selected" : "") + ">" + escapeHtml(m.name) + escapeHtml(missingText) + "</option>";
+      }).join("");
+
+      var ratiosHtml = RATIOS.map(function (r) {
+        var active = self.width === r.w && self.height === r.h ? " active" : "";
+        return "<button type=\"button\" class=\"img-gen-ratio-btn" + active + "\" data-w=\"" + r.w + "\" data-h=\"" + r.h + "\">" + escapeHtml(r.label) + "</button>";
+      }).join("");
+
+      var catalogHtml = CATALOG.map(function (entry) {
+        return "<div class=\"img-gen-catalog-row\">"
+          + "<div class=\"img-gen-catalog-copy\">"
+          + "<strong>" + escapeHtml(entry.label) + "</strong>"
+          + "<span>" + escapeHtml(entry.note) + "</span>"
+          + "</div>"
+          + "<button type=\"button\" class=\"img-gen-install-btn\" data-install-id=\"" + escapeHtml(entry.id) + "\"" + (self.isGenerating ? " disabled" : "") + ">Installer</button>"
+          + "</div>";
+      }).join("");
+
+      var galleryHtml = this.gallery.map(function (img, idx) {
+        return "<div class=\"img-gen-gallery-card\" data-gallery-idx=\"" + idx + "\">"
+          + "<img src=\"" + escapeHtml(img.url) + "\" alt=\"" + escapeHtml(img.prompt) + "\" loading=\"lazy\">"
+          + "<div class=\"img-gen-gallery-info\">" + escapeHtml(img.prompt) + "</div>"
+          + "</div>";
+      }).join("");
+
+      this.shadowRoot.innerHTML = "<style>" + CSS + "</style>"
+        + "<div class=\"img-gen-inline\">"
+        + "  <div class=\"img-gen-header\">"
+        + "    <div class=\"img-gen-title-wrap\">"
+        + "      <div class=\"img-gen-icon\">✦</div>"
+        + "      <div>"
+        + "        <div class=\"img-gen-title\">Génération et retouche d'image</div>"
+        + "        <div class=\"img-gen-subtitle\">Génération locale via le moteur stable-diffusion.cpp · Z-Image, FLUX, SDXL</div>"
+        + "      </div>"
+        + "    </div>"
+        + "    <div class=\"img-gen-badge" + (isInstalled ? "" : " empty") + "\">"
+        + "      " + (self.isLoadingModels ? "Recherche…" : isInstalled ? this.models.length + " modèle" + (this.models.length > 1 ? "s" : "") + " disponible" + (this.models.length > 1 ? "s" : "") : "Aucun modèle installé")
+        + "    </div>"
+        + "  </div>"
+
+        + "  <div class=\"img-gen-tabs\">"
+        + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "txt2img" ? " img-gen-tab-active" : "") + "\" data-mode=\"txt2img\">Texte → Image</button>"
+        + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "img2img" ? " img-gen-tab-active" : "") + "\" data-mode=\"img2img\">Image → Image</button>"
+        + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "edit" ? " img-gen-tab-active" : "") + "\" data-mode=\"edit\">Retouche</button>"
+        + "  </div>"
+
+        + "  <div class=\"img-gen-field\">"
+        + "    <div class=\"img-gen-field-row\">"
+        + "      <label class=\"img-gen-label\" for=\"ig-model\">Modèle de diffusion</label>"
+        + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-refresh-models\" style=\"padding:2px 8px;font-size:11px\">Actualiser la liste</button>"
+        + "    </div>"
+        + "    <select class=\"img-gen-select\" id=\"ig-model\"" + (!isInstalled || this.isGenerating ? " disabled" : "") + ">"
+        +        (optionsHtml || "<option value=\"\">Installez un modèle ci-dessous</option>")
+        + "    </select>"
+        +      (!isInstalled ? "<div class=\"img-gen-catalog\"><div class=\"img-gen-label\" style=\"margin-top:6px\">Catalogue d'installation rapide :</div>" + catalogHtml + "</div>" : "")
+        + "  </div>"
+
+        + "  <div class=\"img-gen-field\">"
+        + "    <div class=\"img-gen-field-row\">"
+        + "      <label class=\"img-gen-label\" for=\"ig-prompt\">Description (Prompt)</label>"
+        + "    </div>"
+        + "    <textarea class=\"img-gen-textarea\" id=\"ig-prompt\" placeholder=\"Décrivez précisément l'image que vous souhaitez générer…\"" + (this.isGenerating ? " disabled" : "") + ">" + escapeHtml(this.prompt) + "</textarea>"
+        + "  </div>"
+
+        + (this.mode !== "txt2img" ? (
+          "  <div class=\"img-gen-field\">"
+          + "    <label class=\"img-gen-label\">Image source</label>"
+          + "    <div class=\"img-gen-dropzone" + (this.sourceImage ? " img-gen-dropzone-filled" : "") + "\" id=\"ig-dropzone\">"
+          +        (this.sourceImage
+                    ? "<img class=\"img-gen-preview-img\" src=\"" + escapeHtml(this.sourceImage) + "\" alt=\"Source\"><div>Cliquer pour changer l'image source</div>"
+                    : "<div>Glissez-déposez ou cliquez pour choisir une image</div>")
+          + "    </div>"
+          + "    <input type=\"file\" id=\"ig-file\" accept=\"image/*\" hidden>"
+          + "  </div>"
+        ) : "")
+
+        + "  <div class=\"img-gen-field\">"
+        + "    <label class=\"img-gen-label\">Format et dimensions</label>"
+        + "    <div class=\"img-gen-ratios\">" + ratiosHtml + "</div>"
+        + "  </div>"
+
+        + "  <button type=\"button\" class=\"img-gen-advanced-toggle\" id=\"ig-adv-toggle\">"
+        + "    <span>" + (this.showAdvanced ? "▼" : "▶") + " Options avancées</span>"
+        + "    <span style=\"margin-left:auto;color:var(--text-faint)\">" + this.width + "×" + this.height + " · " + this.steps + " étapes · CFG " + this.cfgScale + "</span>"
+        + "  </button>"
+
+        + (this.showAdvanced ? (
+          "  <div class=\"img-gen-advanced-panel\">"
+          + "    <div class=\"img-gen-field\" style=\"border:none;padding:0;background:transparent\">"
+          + "      <label class=\"img-gen-label\" for=\"ig-negative\">Prompt négatif</label>"
+          + "      <input type=\"text\" class=\"img-gen-input\" id=\"ig-negative\" placeholder=\"flou, déformation, basse qualité…\" value=\"" + escapeHtml(this.negativePrompt) + "\"" + (this.isGenerating ? " disabled" : "") + ">"
+          + "    </div>"
+          + "    <div class=\"img-gen-adv-row\">"
+          + "      <div style=\"display:flex;flex-direction:column;gap:6px\">"
+          + "        <div class=\"img-gen-field-row\"><span class=\"img-gen-label\">Étapes (Steps)</span><span class=\"img-gen-val\">" + this.steps + "</span></div>"
+          + "        <input type=\"range\" min=\"1\" max=\"60\" value=\"" + this.steps + "\" id=\"ig-steps-range\" style=\"accent-color:var(--accent)\"" + (this.isGenerating ? " disabled" : "") + ">"
+          + "      </div>"
+          + "      <div style=\"display:flex;flex-direction:column;gap:6px\">"
+          + "        <div class=\"img-gen-field-row\"><span class=\"img-gen-label\">Guidance (CFG Scale)</span><span class=\"img-gen-val\">" + this.cfgScale + "</span></div>"
+          + "        <input type=\"range\" min=\"0.5\" max=\"20\" step=\"0.5\" value=\"" + this.cfgScale + "\" id=\"ig-cfg-range\" style=\"accent-color:var(--accent)\"" + (this.isGenerating ? " disabled" : "") + ">"
+          + "      </div>"
+          + "    </div>"
+          + "    <label style=\"display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text-dim)\">"
+          + "      <input type=\"checkbox\" id=\"ig-uncensored\"" + (this.uncensored ? " checked" : "") + (this.isGenerating ? " disabled" : "") + ">"
+          + "      <span>Mode sans filtre (utilise l'encodeur abliteré si présent)</span>"
+          + "    </label>"
+          + "  </div>"
+        ) : "")
+
+        + (this.notice ? "<div class=\"img-gen-notice\">" + escapeHtml(this.notice) + "</div>" : "")
+        + (this.error ? "<div class=\"img-gen-error\">" + escapeHtml(this.error) + "</div>" : "")
+
+        + "  <div class=\"img-gen-actions\">"
+        + "    <button type=\"button\" class=\"img-gen-generate-btn\" id=\"ig-generate-btn\"" + (this.isGenerating || !isInstalled ? " disabled" : "") + ">"
+        +        (this.isGenerating ? "Génération en cours…" : (this.mode === "img2img" ? "Transformer l'image" : "Générer l'image"))
+        + "    </button>"
+        + "  </div>"
+
+        + "  <div class=\"img-gen-output-area\">"
+        +      (this.isGenerating ? (
+                "  <div class=\"img-gen-generating-wrap\">"
+                + "    <div class=\"img-gen-placeholder\">"
+                + "      <div class=\"img-gen-shimmer\"></div>"
+                + "      <div class=\"img-gen-pulse-ring\"></div>"
+                + "      <div class=\"img-gen-generating-label\">Calcul des étapes de diffusion…</div>"
+                + "    </div>"
+                + "    <div class=\"img-gen-progress-bar\"><div class=\"img-gen-progress-fill\"></div></div>"
+                + "  </div>"
+              ) : this.currentResult ? (
+                "  <div class=\"img-gen-result\">"
+                + "    <div style=\"font-size:14px;font-weight:700;color:var(--accent)\">✓ Image générée</div>"
+                + "    <img class=\"img-gen-result-img\" src=\"" + escapeHtml(this.currentResult.url) + "\" alt=\"Résultat\">"
+                + "    <div style=\"display:flex;gap:8px;margin-top:6px\">"
+                + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-res-save\">Télécharger</button>"
+                + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-res-copy\">Copier</button>"
+                + "    </div>"
+                + "  </div>"
+              ) : "")
+        + "  </div>"
+
+        + (this.gallery.length > 0 ? (
+          "  <div class=\"img-gen-field\">"
+          + "    <div class=\"img-gen-field-row\">"
+          + "      <label class=\"img-gen-label\">Galerie récente (" + this.gallery.length + ")</label>"
+          + "    </div>"
+          + "    <div class=\"img-gen-gallery\">" + galleryHtml + "</div>"
+          + "  </div>"
+        ) : "")
+        + "</div>"
+
+        + (this.lightbox ? (
+          "  <div class=\"img-gen-modal\" id=\"ig-lightbox-modal\">"
+          + "    <div class=\"img-gen-modal-box\">"
+          + "      <img class=\"img-gen-modal-img\" src=\"" + escapeHtml(this.lightbox.url) + "\" alt=\"Agrandissement\">"
+          + "      <div class=\"img-gen-modal-bar\">"
+          + "        <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-lb-save\">Enregistrer</button>"
+          + "        <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-lb-copy\">Copier</button>"
+          + "        <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-lb-close\">Fermer</button>"
+          + "      </div>"
+          + "    </div>"
+          + "  </div>"
+        ) : "");
+
+      this.bindEvents();
     }
 
-    connectedCallback() {
+    bindEvents() {
       var self = this;
-      this.render();
-      var b = bridge();
-      // Only this composer contribution registers the handler. If the Studio
-      // tab is also mounted, it cannot consume the same message a second time.
-      if (b && b.chat && b.chat.onSubmit && !window.__locarynImageGenSubmit) {
-        var handler = function (text) {
-          if (!looksLikeImageRequest(text)) return false;
-          self.open = true;
-          self.render();
-          var panel = self.shadowRoot.querySelector("locaryn-image-gen-panel");
-          return panel && panel.generatePrompt ? panel.generatePrompt(text).then(function () { return true; }) : true;
-        };
-        this._unsubscribe = b.chat.onSubmit(handler);
-        window.__locarynImageGenSubmit = { owner: this, handler: handler };
+      var root = this.shadowRoot;
+      if (!root) return;
+
+      var promptEl = root.querySelector("#ig-prompt");
+      if (promptEl) {
+        promptEl.addEventListener("input", function () { self.prompt = promptEl.value; });
       }
-    }
 
-    disconnectedCallback() {
-      if (this._unsubscribe) this._unsubscribe();
-      if (window.__locarynImageGenSubmit && window.__locarynImageGenSubmit.owner === this) delete window.__locarynImageGenSubmit;
-    }
+      var negEl = root.querySelector("#ig-negative");
+      if (negEl) {
+        negEl.addEventListener("input", function () { self.negativePrompt = negEl.value; });
+      }
 
-    render() {
-      var panel;
-      this.shadowRoot.innerHTML = "<style>" + CSS + ".ig-floating{display:" + (this.open ? "block" : "none") + ";}</style><button type=\"button\" title=\"Générer une image\">🖼 Image</button><div class=\"ig-floating\"><locaryn-image-gen-panel></locaryn-image-gen-panel></div>";
-      panel = this.shadowRoot.querySelector("locaryn-image-gen-panel");
-      if (panel) panel.context = this.context;
-      var button = this.shadowRoot.querySelector("button");
-      if (button) button.addEventListener("click", function () { this.open = !this.open; this.render(); }.bind(this));
+      var modelEl = root.querySelector("#ig-model");
+      if (modelEl) {
+        modelEl.addEventListener("change", function () {
+          self.selectedModel = modelEl.value;
+          var found = CATALOG.find(function (c) { return self.selectedModel.toLowerCase().indexOf(c.id) >= 0; });
+          if (found) {
+            self.steps = found.defaultSteps;
+            self.cfgScale = found.defaultCfg;
+          }
+          self.render();
+        });
+      }
+
+      root.querySelectorAll("[data-mode]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          self.updateState();
+          self.mode = btn.getAttribute("data-mode") || "txt2img";
+          self.render();
+        });
+      });
+
+      root.querySelectorAll("[data-w]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          self.updateState();
+          self.width = Number(btn.getAttribute("data-w"));
+          self.height = Number(btn.getAttribute("data-h"));
+          self.render();
+        });
+      });
+
+      var advToggle = root.querySelector("#ig-adv-toggle");
+      if (advToggle) {
+        advToggle.addEventListener("click", function () {
+          self.updateState();
+          self.showAdvanced = !self.showAdvanced;
+          self.render();
+        });
+      }
+
+      var stepsRange = root.querySelector("#ig-steps-range");
+      if (stepsRange) {
+        stepsRange.addEventListener("input", function () {
+          self.steps = Number(stepsRange.value);
+          var valEl = stepsRange.parentElement.querySelector(".img-gen-val");
+          if (valEl) valEl.textContent = String(self.steps);
+        });
+      }
+
+      var cfgRange = root.querySelector("#ig-cfg-range");
+      if (cfgRange) {
+        cfgRange.addEventListener("input", function () {
+          self.cfgScale = Number(cfgRange.value);
+          var valEl = cfgRange.parentElement.querySelector(".img-gen-val");
+          if (valEl) valEl.textContent = String(self.cfgScale);
+        });
+      }
+
+      var uncensoredCb = root.querySelector("#ig-uncensored");
+      if (uncensoredCb) {
+        uncensoredCb.addEventListener("change", function () {
+          self.uncensored = uncensoredCb.checked;
+        });
+      }
+
+      var generateBtn = root.querySelector("#ig-generate-btn");
+      if (generateBtn) {
+        generateBtn.addEventListener("click", function () {
+          self.updateState();
+          self.generate();
+        });
+      }
+
+      var refreshBtn = root.querySelector("#ig-refresh-models");
+      if (refreshBtn) {
+        refreshBtn.addEventListener("click", function () {
+          self.updateState();
+          self.refreshModels();
+        });
+      }
+
+      root.querySelectorAll("[data-install-id]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = btn.getAttribute("data-install-id");
+          var item = CATALOG.find(function (c) { return c.id === id; });
+          if (item) self.installModel(item);
+        });
+      });
+
+      var dropzone = root.querySelector("#ig-dropzone");
+      var fileInput = root.querySelector("#ig-file");
+      if (dropzone && fileInput) {
+        dropzone.addEventListener("click", function () { fileInput.click(); });
+        fileInput.addEventListener("change", function () {
+          var file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            self.sourceImage = reader.result;
+            self.render();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      var resImg = root.querySelector(".img-gen-result-img");
+      if (resImg && self.currentResult) {
+        resImg.addEventListener("click", function () {
+          self.lightbox = self.currentResult;
+          self.render();
+        });
+      }
+
+      var resSave = root.querySelector("#ig-res-save");
+      if (resSave && self.currentResult) {
+        resSave.addEventListener("click", function () { saveImage(self.currentResult.url); });
+      }
+
+      var resCopy = root.querySelector("#ig-res-copy");
+      if (resCopy && self.currentResult) {
+        resCopy.addEventListener("click", function () {
+          copyImage(self.currentResult.url).then(function () {
+            toast("Image copiée dans le presse-papier", "success");
+          }).catch(function (e) {
+            toast("Erreur lors de la copie : " + e.message, "error");
+          });
+        });
+      }
+
+      root.querySelectorAll("[data-gallery-idx]").forEach(function (el) {
+        el.addEventListener("click", function () {
+          var idx = Number(el.getAttribute("data-gallery-idx"));
+          if (self.gallery[idx]) {
+            self.lightbox = self.gallery[idx];
+            self.render();
+          }
+        });
+      });
+
+      var lbModal = root.querySelector("#ig-lightbox-modal");
+      if (lbModal) {
+        lbModal.addEventListener("click", function (e) {
+          if (e.target === lbModal) {
+            self.lightbox = null;
+            self.render();
+          }
+        });
+      }
+
+      var lbClose = root.querySelector("#ig-lb-close");
+      if (lbClose) {
+        lbClose.addEventListener("click", function () {
+          self.lightbox = null;
+          self.render();
+        });
+      }
+
+      var lbSave = root.querySelector("#ig-lb-save");
+      if (lbSave && self.lightbox) {
+        lbSave.addEventListener("click", function () { saveImage(self.lightbox.url); });
+      }
+
+      var lbCopy = root.querySelector("#ig-lb-copy");
+      if (lbCopy && self.lightbox) {
+        lbCopy.addEventListener("click", function () {
+          copyImage(self.lightbox.url).then(function () {
+            toast("Image copiée dans le presse-papier", "success");
+          }).catch(function (e) {
+            toast("Erreur lors de la copie : " + e.message, "error");
+          });
+        });
+      }
     }
   }
 
-  if (!customElements.get("locaryn-image-gen-panel")) customElements.define("locaryn-image-gen-panel", ImagePanel);
-  if (!customElements.get("locaryn-image-gen-button")) customElements.define("locaryn-image-gen-button", ImageButton);
+  if (!customElements.get("locaryn-image-gen-panel")) {
+    customElements.define("locaryn-image-gen-panel", ImageGenPanel);
+  }
 })();
