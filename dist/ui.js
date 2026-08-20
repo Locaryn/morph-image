@@ -654,6 +654,7 @@
       this.cfgScale = 7.0;
       this.sourceImage = null;
       this.showAdvanced = false;
+      this.showCatalog = false;
       this.uncensored = false;
       this.isGenerating = false;
       this.isLoadingModels = true;
@@ -791,6 +792,9 @@
 
       var current = this.selectedModel || (this.models[0] && this.models[0].name) || "";
       var isInstalled = this.models.length > 0;
+      // Rien d'installé : le catalogue est la seule action utile de
+      // l'écran, il s'ouvre de lui-même.
+      var catalogOpen = this.showCatalog || !isInstalled;
 
       var optionsHtml = this.models.map(function (m) {
         var missingText = m.missing && m.missing.length ? " (" + m.missing.length + " compagnon manquant)" : "";
@@ -848,7 +852,14 @@
         + "    <select class=\"img-gen-select\" id=\"ig-model\"" + (!isInstalled || this.isGenerating ? " disabled" : "") + ">"
         +        (optionsHtml || "<option value=\"\">Installez un modèle ci-dessous</option>")
         + "    </select>"
-        +      (!isInstalled ? "<div class=\"img-gen-catalog\"><div class=\"img-gen-label\" style=\"margin-top:6px\">Catalogue d'installation rapide :</div>" + catalogHtml + "</div>" : "")
+        + "    <div class=\"img-gen-catalog\">"
+        +      (isInstalled
+                 ? "<button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-toggle-catalog\" style=\"margin-top:8px;padding:4px 10px;font-size:11px\">"
+                   + (catalogOpen ? "Masquer le catalogue" : "Installer un autre modèle")
+                   + "</button>"
+                 : "")
+        +      (catalogOpen ? "<div class=\"img-gen-label\" style=\"margin-top:10px\">Catalogue d'installation rapide :</div>" + catalogHtml : "")
+        + "    </div>"
         + "  </div>"
 
         + "  <div class=\"img-gen-field\">"
@@ -1044,6 +1055,15 @@
         generateBtn.addEventListener("click", function () {
           self.updateState();
           self.generate();
+        });
+      }
+
+      var toggleCatalog = root.querySelector("#ig-toggle-catalog");
+      if (toggleCatalog) {
+        toggleCatalog.addEventListener("click", function () {
+          self.updateState();
+          self.showCatalog = !self.showCatalog;
+          self.render();
         });
       }
 
