@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.5.0";
+const VERSION: &str = "1.5.1";
 
 #[tokio::main]
 async fn main() {

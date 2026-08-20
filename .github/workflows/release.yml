@@ -83,6 +83,7 @@ jobs:
           test -f bundle/bin/${{ matrix.binary }}
           test -f bundle/plugin.json
           test -f bundle/dist/ui.js
+          test -f bundle/dist/marketplace.json
           test -f bundle/mcp/mcp.json
 
       # Les artefacts ne conservent pas le bit exécutable ; le job de release
@@ -127,6 +128,7 @@ jobs:
           for archive in out/*.zip; do
             unzip -l "$archive" | grep -q "plugin.json"
             unzip -l "$archive" | grep -q "dist/ui.js"
+            unzip -l "$archive" | grep -q "dist/marketplace.json"
             unzip -l "$archive" | grep -q "mcp/mcp.json"
             unzip -l "$archive" | grep -q "bin/locaryn-image-gen-mcp"
           done
