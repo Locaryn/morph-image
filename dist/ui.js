@@ -11,13 +11,36 @@
     return window.locaryn || window.LocarynPluginAPI || null;
   }
 
+  /** Les proportions, en multiples de la résolution native du modèle : rendre
+   *  un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le calcul
+   *  pour une image moins bonne. */
   var RATIOS = [
-    { label: "Carré", detail: "1:1", w: 1024, h: 1024 },
-    { label: "Paysage", detail: "16:9", w: 1280, h: 720 },
-    { label: "Portrait", detail: "9:16", w: 720, h: 1280 },
-    { label: "Photo", detail: "4:3", w: 1024, h: 768 },
-    { label: "Affiche", detail: "3:4", w: 768, h: 1024 }
+    { label: "Carré", detail: "1:1", w: 1, h: 1 },
+    { label: "Paysage", detail: "16:9", w: 1.25, h: 0.703125 },
+    { label: "Portrait", detail: "9:16", w: 0.703125, h: 1.25 },
+    { label: "Photo", detail: "4:3", w: 1, h: 0.75 },
+    { label: "Affiche", detail: "3:4", w: 0.75, h: 1 }
   ];
+
+  /** Un multiple de 64 : les moteurs de diffusion travaillent par blocs. */
+  function snap(value) {
+    return Math.max(64, Math.round(value / 64) * 64);
+  }
+
+  /** La taille sur laquelle la famille du modèle a été entraînée. */
+  function defaultResolution(name) {
+    var lower = String(name || "").toLowerCase();
+    var zImage = ["z_image", "z-image", "z-img", "z_img", "zimg"].some(function (part) {
+      return lower.indexOf(part) >= 0;
+    });
+    if (zImage || lower.indexOf("flux") >= 0) return 1024;
+    var large = ["sdxl", "sd_xl", "sd-xl", "sd3", "playground-v", "kolors", "pixart"].some(
+      function (part) {
+        return lower.indexOf(part) >= 0;
+      }
+    );
+    return large ? 1024 : 512;
+  }
 
   /** Les mêmes réglages par défaut que le moteur, pour que la valeur affichée
    *  soit celle qui sera réellement utilisée. */
@@ -518,6 +541,8 @@ button { font: inherit; }
       this.selectedModel = "";
       this.prompt = "";
       this.negativePrompt = "";
+      this.base = 1024;
+      this.ratio = RATIOS[0];
       this.width = 1024;
       this.height = 1024;
       this.steps = 20;
@@ -550,6 +575,9 @@ button { font: inherit; }
       var sampling = defaultSampling(name);
       this.steps = sampling.steps;
       this.cfgScale = sampling.cfg;
+      this.base = defaultResolution(name);
+      this.width = snap(this.base * this.ratio.w);
+      this.height = snap(this.base * this.ratio.h);
     }
 
     refreshModels() {
@@ -742,15 +770,13 @@ button { font: inherit; }
     renderControls() {
       var self = this;
       var busy = this.isGenerating;
-      var ratios = RATIOS.map(function (ratio) {
-        var on = self.width === ratio.w && self.height === ratio.h ? " ig-ratio-on" : "";
+      var ratios = RATIOS.map(function (ratio, index) {
+        var on = self.ratio === ratio ? " ig-ratio-on" : "";
         return (
           '<button type="button" class="ig-ratio' +
           on +
-          '" data-w="' +
-          ratio.w +
-          '" data-h="' +
-          ratio.h +
+          '" data-ratio="' +
+          index +
           '">' +
           escapeHtml(ratio.label) +
           "<span>" +
@@ -999,10 +1025,11 @@ button { font: inherit; }
         self.mode = element.getAttribute("data-mode") || "txt2img";
         self.render();
       });
-      onAll("[data-w]", "click", function (element) {
+      onAll("[data-ratio]", "click", function (element) {
         self.captureInputs();
-        self.width = Number(element.getAttribute("data-w"));
-        self.height = Number(element.getAttribute("data-h"));
+        self.ratio = RATIOS[Number(element.getAttribute("data-ratio"))] || RATIOS[0];
+        self.width = snap(self.base * self.ratio.w);
+        self.height = snap(self.base * self.ratio.h);
         self.render();
       });
 

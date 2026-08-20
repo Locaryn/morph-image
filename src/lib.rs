@@ -22,14 +22,17 @@ pub struct ImageGenRequest {
     /// Optional: the first detected checkpoint is used when omitted.
     #[serde(default)]
     pub model: Option<String>,
-    #[serde(default = "default_width")]
-    pub width: u32,
-    #[serde(default = "default_height")]
-    pub height: u32,
-    #[serde(default = "default_steps")]
-    pub steps: u32,
-    #[serde(default = "default_cfg")]
-    pub cfg_scale: f32,
+    /// Absent : la résolution native de la famille du modèle. Une valeur
+    /// imposée par défaut faisait rendre du SD 1.5 en 1024 — lent, et pire.
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    /// Absents : l'échantillonnage que la famille du modèle demande.
+    #[serde(default)]
+    pub steps: Option<u32>,
+    #[serde(default)]
+    pub cfg_scale: Option<f32>,
     #[serde(default)]
     pub input_image: Option<String>,
     #[serde(default)]
@@ -38,18 +41,6 @@ pub struct ImageGenRequest {
     pub variants: u32,
 }
 
-fn default_width() -> u32 {
-    1024
-}
-fn default_height() -> u32 {
-    1024
-}
-fn default_steps() -> u32 {
-    20
-}
-fn default_cfg() -> f32 {
-    7.0
-}
 fn default_variants() -> u32 {
     1
 }
@@ -83,6 +74,36 @@ pub fn classify_model(file_name: &str) -> ModelFamily {
         ModelFamily::Flux
     } else {
         ModelFamily::FullCheckpoint
+    }
+}
+
+/// Le côté sur lequel la famille du modèle a été entraînée.
+///
+/// Rendre un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le
+/// calcul et donne une image moins bonne — sujets dédoublés, cadrage éclaté.
+/// Sans dimension demandée, on rend donc à la résolution native.
+pub fn default_resolution(file_name: &str) -> u32 {
+    let name = file_name.to_ascii_lowercase();
+    match classify_model(file_name) {
+        ModelFamily::ZImage | ModelFamily::Flux => 1024,
+        ModelFamily::FullCheckpoint => {
+            let large = [
+                "sdxl",
+                "sd_xl",
+                "sd-xl",
+                "sd3",
+                "playground-v",
+                "kolors",
+                "pixart",
+            ]
+            .iter()
+            .any(|part| name.contains(part));
+            if large {
+                1024
+            } else {
+                512
+            }
+        }
     }
 }
 
@@ -530,6 +551,25 @@ pub fn resolve_model_path(raw: &str) -> PathBuf {
     models_dir().join(raw)
 }
 
+/// Un chemin canonique que le moteur sait relire.
+///
+/// Sous Windows, `canonicalize` renvoie la forme longue `\\?\D:\...`.
+/// stable-diffusion.cpp la refuse pour un dossier — « get sd version from file
+/// failed » sur un dépôt qui se charge parfaitement par son chemin ordinaire.
+fn plain_path(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{stripped}"));
+        }
+        if let Some(stripped) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    path
+}
+
 fn validate_model_path(path: &Path) -> Result<PathBuf, String> {
     let model = if path.exists() {
         std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
@@ -537,7 +577,7 @@ fn validate_model_path(path: &Path) -> Result<PathBuf, String> {
         let resolved = resolve_model_path(&path.to_string_lossy());
         std::fs::canonicalize(&resolved).map_err(|e| format!("modèle introuvable : {e}"))?
     };
-    Ok(model)
+    Ok(plain_path(model))
 }
 
 pub struct SdRequest<'a> {
@@ -573,6 +613,34 @@ pub fn batch_output(out_file: &Path, count: u32) -> (PathBuf, Vec<PathBuf>) {
     (pattern, paths)
 }
 
+/// Ce qu'il faut passer à `-m` pour un modèle rangé dans un dossier.
+///
+/// Un dépôt au format diffusers n'a pas de fichier de poids à sa racine : ses
+/// poids sont dans `unet/`, `vae/` et `text_encoder/`. Chercher un fichier à la
+/// racine puis abandonner rejetait un dépôt que le moteur sait pourtant charger
+/// tel quel, en lui donnant le dossier — c'est ce que faisait le catalogue en
+/// le proposant comme modèle, et la génération échouait juste après.
+fn directory_checkpoint(dir: &Path) -> Option<PathBuf> {
+    let top_level = std::fs::read_dir(dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.is_file()
+                && matches!(
+                    path.extension().and_then(|ext| ext.to_str()),
+                    Some("gguf") | Some("safetensors") | Some("ckpt")
+                )
+        });
+    if top_level.is_some() {
+        return top_level;
+    }
+    let diffusers = dir.join("model_index.json").is_file() || dir.join("unet").is_dir();
+    diffusers.then(|| dir.to_path_buf())
+}
+
 pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
     let file_name = request
         .model_path
@@ -584,20 +652,7 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
     let mut args = vec!["-M".into(), "img_gen".into()];
 
     if request.model_path.is_dir() {
-        let checkpoint = std::fs::read_dir(request.model_path)
-            .ok()
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|entry| entry.path())
-            .find(|path| {
-                path.is_file()
-                    && matches!(
-                        path.extension().and_then(|ext| ext.to_str()),
-                        Some("gguf") | Some("safetensors") | Some("ckpt")
-                    )
-            });
-        let Some(checkpoint) = checkpoint else {
+        let Some(checkpoint) = directory_checkpoint(request.model_path) else {
             return Err(format!(
                 "dossier de modèle invalide : {}",
                 request.model_path.display()
@@ -720,16 +775,23 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| selected.clone());
     let (family_steps, family_cfg) = default_sampling(&model_name);
-    let steps = if request.steps == 20 || request.steps == 8 {
-        family_steps
-    } else {
-        request.steps.clamp(1, 100)
-    };
-    let cfg = if (request.cfg_scale - 7.0).abs() < f32::EPSILON {
-        family_cfg
-    } else {
-        request.cfg_scale.clamp(0.1, 30.0)
-    };
+    let steps = request
+        .steps
+        .map(|value| value.clamp(1, 100))
+        .unwrap_or(family_steps);
+    let cfg = request
+        .cfg_scale
+        .map(|value| value.clamp(0.1, 30.0))
+        .unwrap_or(family_cfg);
+    let native = default_resolution(&model_name);
+    let width = request
+        .width
+        .map(|value| value.clamp(64, 2048))
+        .unwrap_or(native);
+    let height = request
+        .height
+        .map(|value| value.clamp(64, 2048))
+        .unwrap_or(native);
 
     let output_dir = generated_images_dir();
     std::fs::create_dir_all(&output_dir).map_err(|e| format!("dossier de sortie : {e}"))?;
@@ -758,8 +820,8 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         models_dir: &models,
         prompt: request.prompt.trim(),
         negative_prompt: request.negative_prompt.as_deref(),
-        width: request.width.clamp(64, 2048),
-        height: request.height.clamp(64, 2048),
+        width,
+        height,
         steps,
         cfg_scale: cfg,
         seed: stamp as i64,
@@ -1235,6 +1297,69 @@ mod tests {
         assert!(pattern.to_string_lossy().contains("img_%d.png"));
         assert_eq!(files[0], PathBuf::from("out/img_0.png"));
         assert_eq!(files[2], PathBuf::from("out/img_2.png"));
+    }
+
+    /// Sans dimension demandée, chaque famille rend à sa taille d'entraînement.
+    #[test]
+    fn a_model_renders_at_the_size_it_was_trained_for() {
+        assert_eq!(default_resolution("z_image_turbo-Q8_0.gguf"), 1024);
+        assert_eq!(default_resolution("flux1-schnell-Q4_0.gguf"), 1024);
+        assert_eq!(default_resolution("sd_xl_turbo_1.0.q8_0.gguf"), 1024);
+        assert_eq!(
+            default_resolution("stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf"),
+            512
+        );
+        assert_eq!(default_resolution("stablediffusionapi__deliberate-v2"), 512);
+    }
+
+    /// Le moteur relit un chemin ordinaire, pas la forme longue de Windows.
+    #[cfg(windows)]
+    #[test]
+    fn the_engine_gets_a_path_it_can_reopen() {
+        assert_eq!(
+            plain_path(PathBuf::from(r"\\?\D:\modeles\sd.gguf")),
+            PathBuf::from(r"D:\modeles\sd.gguf")
+        );
+        assert_eq!(
+            plain_path(PathBuf::from(r"\\?\UNC\serveur\part\sd.gguf")),
+            PathBuf::from(r"\\serveur\part\sd.gguf")
+        );
+        assert_eq!(
+            plain_path(PathBuf::from(r"D:\deja\simple.gguf")),
+            PathBuf::from(r"D:\deja\simple.gguf")
+        );
+    }
+
+    /// Un dépôt diffusers se charge en donnant le dossier au moteur ; un dépôt
+    /// sans aucun poids reste refusé, avec un message.
+    #[test]
+    fn a_diffusers_repository_is_loaded_as_a_directory() {
+        let root = temp_dir("diffusers-dir");
+
+        let plain = root.join("un-checkpoint");
+        std::fs::create_dir_all(&plain).unwrap();
+        std::fs::write(plain.join("model.safetensors"), b"x").unwrap();
+        assert_eq!(
+            directory_checkpoint(&plain),
+            Some(plain.join("model.safetensors"))
+        );
+
+        let repo = root.join("stablediffusionapi__deliberate-v2");
+        std::fs::create_dir_all(repo.join("unet")).unwrap();
+        std::fs::write(repo.join("model_index.json"), b"{}").unwrap();
+        std::fs::write(
+            repo.join("unet")
+                .join("diffusion_pytorch_model.safetensors"),
+            b"x",
+        )
+        .unwrap();
+        assert_eq!(directory_checkpoint(&repo), Some(repo.clone()));
+
+        let empty = root.join("rien");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert_eq!(directory_checkpoint(&empty), None);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     fn temp_dir(name: &str) -> PathBuf {

@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.5.0";
+const VERSION: &str = "1.5.1";
 
 #[tokio::main]
 async fn main() {
@@ -75,7 +75,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "install_image_model",
-                "description": "Télécharge un checkpoint et ses compagnons HuggingFace.",
+                "description": "Télécharge un checkpoint et ses compagnons HuggingFace. En temps normal, renvoyez plutôt l'utilisateur vers le catalogue de modèles de l'application, filtre « Génération d'image » : il y trouve les modèles à jour avec leurs fichiers compagnons.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -96,19 +96,19 @@ fn tools_list() -> Value {
             },
             {
                 "name": "generate_image",
-                "description": "Génère ou transforme localement une image avec le moteur du plugin. Omettez model pour suivre le modèle par défaut choisi dans le compte, ou à défaut le premier checkpoint installé.",
+                "description": "Génère ou transforme localement une image avec le moteur du plugin. Rédigez toujours prompt en anglais et en détail, quelle que soit la langue de la demande : ces modèles sont entraînés sur des légendes anglaises. Ne renseignez ni steps ni cfg_scale sans demande explicite — le moteur choisit déjà ce qui convient à la famille du modèle. Omettez model pour suivre le modèle par défaut choisi dans le compte, ou à défaut le premier checkpoint installé.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["prompt"],
                     "properties": {
-                        "prompt": { "type": "string" },
-                        "negative_prompt": { "type": "string" },
-                        "model": { "type": "string" },
-                        "width": { "type": "integer", "minimum": 64, "maximum": 2048 },
-                        "height": { "type": "integer", "minimum": 64, "maximum": 2048 },
-                        "steps": { "type": "integer", "minimum": 1, "maximum": 100 },
-                        "cfg_scale": { "type": "number", "minimum": 0.1, "maximum": 30 },
-                        "input_image": { "type": "string" },
+                        "prompt": { "type": "string", "description": "Description visuelle en anglais : sujet, composition, lumière, style, support." },
+                        "negative_prompt": { "type": "string", "description": "Ce qu'il faut éviter, en anglais." },
+                        "model": { "type": "string", "description": "Nom exact d'un checkpoint renvoyé par list_image_models. À omettre en temps normal." },
+                        "width": { "type": "integer", "minimum": 64, "maximum": 2048, "description": "À laisser vide sauf format demandé : chaque famille de modèle rend à sa résolution d'entraînement." },
+                        "height": { "type": "integer", "minimum": 64, "maximum": 2048, "description": "À laisser vide sauf format demandé." },
+                        "steps": { "type": "integer", "minimum": 1, "maximum": 100, "description": "À laisser vide sauf demande explicite : une valeur trop haute allonge le calcul sans rien apporter." },
+                        "cfg_scale": { "type": "number", "minimum": 0.1, "maximum": 30, "description": "À laisser vide sauf demande explicite." },
+                        "input_image": { "type": "string", "description": "URL data:image/...;base64,... pour transformer une image existante." },
                         "uncensored": { "type": "boolean" },
                         "variants": { "type": "integer", "minimum": 1, "maximum": 8 }
                     }

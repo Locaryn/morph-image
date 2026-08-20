@@ -23,7 +23,9 @@ For `generate_image`, provide:
 - `prompt`: detailed English visual description;
 - `model` when a specific installed checkpoint is requested; omit it to follow the account's
   default image model, falling back to the first installed checkpoint;
-- `width` / `height`: a value between 64 and 2048;
+- `width` / `height` only when the user asks for a specific format — each model family
+  renders at the size it was trained for, and forcing 1024 on a Stable Diffusion 1.x
+  checkpoint costs four times the compute for a worse image;
 - `steps` and `cfg_scale` only when the user asks for custom sampling — the engine already
   picks the values that suit each model family;
 - `input_image` as a `data:image/...;base64,...` URL for image-to-image editing;
