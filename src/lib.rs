@@ -616,6 +616,28 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
     Ok(args)
 }
 
+/// Le checkpoint choisi par le titulaire du compte, si l'hôte en expose un.
+///
+/// L'hôte publie le chemin de ses préférences de modèles dans
+/// `LOCARYN_MODEL_PREFERENCES_FILE` sans en interpréter le contenu ; c'est
+/// l'extension qui sait que la clé `image_model` la concerne. Sans cela, un
+/// appel d'outil qui ne nomme pas de modèle prenait le premier venu, et le
+/// réglage « modèle d'image par défaut » du compte ne servait à rien.
+pub fn account_default_model() -> Option<String> {
+    let path = std::env::var_os("LOCARYN_MODEL_PREFERENCES_FILE")?;
+    let raw = std::fs::read_to_string(PathBuf::from(path)).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let chosen = parsed.get("image_model")?.as_str()?.trim();
+    if chosen.is_empty() {
+        return None;
+    }
+    // Un modèle désinstallé depuis le réglage ne doit pas faire échouer la
+    // génération : on retombe sur ce qui est réellement là.
+    resolve_model_path(chosen)
+        .exists()
+        .then(|| chosen.to_string())
+}
+
 pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, String> {
     if request.prompt.trim().is_empty() {
         return Err("le prompt ne peut pas être vide".into());
@@ -625,6 +647,7 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         .as_deref()
         .filter(|model| !model.trim().is_empty())
         .map(str::to_string)
+        .or_else(account_default_model)
         .or_else(|| list_image_models().into_iter().next())
         .ok_or_else(|| {
             "aucun modèle de diffusion installé dans le stockage du plugin".to_string()
@@ -990,6 +1013,28 @@ mod tests {
         assert!(!is_diffusion_checkpoint(
             "L3.2-8X3B-MOE-Dark-Champion-Q3.gguf"
         ));
+    }
+
+    /// Le réglage du compte ne vaut que si le fichier est encore là : un
+    /// modèle supprimé depuis ne doit pas faire échouer la génération.
+    #[test]
+    fn account_default_is_ignored_when_the_file_is_gone() {
+        let root = temp_dir("prefs");
+        let prefs = root.join("model_preferences.json");
+        std::fs::write(&prefs, br#"{"image_model":"disparu-Q4.gguf"}"#).unwrap();
+        std::env::set_var("LOCARYN_MODEL_PREFERENCES_FILE", &prefs);
+        std::env::set_var("LOCARYN_EXTENSION_MODELS_DIR", &root);
+        assert_eq!(account_default_model(), None);
+
+        std::fs::write(root.join("z_image_turbo-Q8_0.gguf"), b"poids").unwrap();
+        std::fs::write(&prefs, br#"{"image_model":"z_image_turbo-Q8_0.gguf"}"#).unwrap();
+        assert_eq!(
+            account_default_model().as_deref(),
+            Some("z_image_turbo-Q8_0.gguf")
+        );
+        std::env::remove_var("LOCARYN_MODEL_PREFERENCES_FILE");
+        std::env::remove_var("LOCARYN_EXTENSION_MODELS_DIR");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Un dépôt de voix contient lui aussi un `model.safetensors` ; seul son
