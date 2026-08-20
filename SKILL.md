@@ -20,7 +20,8 @@ For `generate_image`, provide:
 - `input_image` as a `data:image/...;base64,...` URL for image-to-image editing;
 - `variants` between 1 and 8 when several alternatives are useful.
 
-The extension owns the model catalog, VAE/text-encoder companions, process invocation,
-output files and Studio interface. Locaryn itself does not expose an image engine,
+Locaryn's Marketplace owns model discovery and installation. The extension owns
+VAE/text-encoder companion resolution, process invocation, output files and its
+model-agnostic Studio interface. Locaryn itself does not expose an image engine,
 image-generation command or image button in the chat composer. The host renders
 MCP image artifacts returned by this extension directly in the conversation.

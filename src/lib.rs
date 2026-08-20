@@ -540,6 +540,25 @@ fn validate_model_path(path: &Path) -> Result<PathBuf, String> {
     Ok(model)
 }
 
+/// Return the library root that owns a resolved checkpoint.
+///
+/// Marketplace downloads live in the host model library, while legacy MCP
+/// installs live in the extension library. Passing `models_dir()` blindly to
+/// companion discovery made a Marketplace-installed checkpoint visible but
+/// left its VAE/text encoders invisible at generation time.
+fn owning_model_dir(model_path: &Path) -> PathBuf {
+    for candidate in candidate_model_dirs() {
+        let resolved = std::fs::canonicalize(&candidate).unwrap_or(candidate);
+        if model_path.starts_with(&resolved) {
+            return resolved;
+        }
+    }
+    model_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(models_dir)
+}
+
 pub struct SdRequest<'a> {
     pub model_path: &'a Path,
     pub models_dir: &'a Path,
@@ -748,7 +767,7 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
             Ok::<PathBuf, String>(path)
         })
         .transpose()?;
-    let models = models_dir();
+    let models = owning_model_dir(&model_path);
     let binary = find_sd_binary().ok_or_else(|| {
         "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
             .to_string()
@@ -1128,6 +1147,20 @@ mod tests {
         assert!(!is_diffusion_checkpoint(
             "L3.2-8X3B-MOE-Dark-Champion-Q3.gguf"
         ));
+    }
+
+    #[test]
+    fn companion_lookup_follows_the_checkpoint_library() {
+        let root = temp_dir("marketplace-library");
+        let checkpoint = root.join("flux1-schnell-Q4_0.gguf");
+        std::fs::write(&checkpoint, b"poids").unwrap();
+        let resolved = std::fs::canonicalize(&checkpoint).unwrap();
+
+        assert_eq!(
+            owning_model_dir(&resolved),
+            std::fs::canonicalize(&root).unwrap()
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     /// L'archive du moteur place parfois tout dans un dossier : l'exécutable
