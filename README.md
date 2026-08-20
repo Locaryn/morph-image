@@ -14,7 +14,10 @@ is rendered as an image in the conversation.
 Locaryn only provides the generic extension host and starts the plugin's MCP
 server. The plugin bundle contains:
 
-- `dist/ui.js`: the plugin-owned Studio custom element;
+- `dist/ui.js`: the Studio custom element. It renders in the document, with no
+  shadow root, and uses the application's own classes (`locaryn-card`,
+  `locaryn-btn-*`, `locaryn-gen-*`) so the panel follows the host theme instead
+  of carrying a stylesheet that ages on its own;
 - `dist/marketplace.json`: the image-model catalogue and the « Génération
   d'image » filter it adds to the application's model catalogue. It declares a
   `refreshUrl`, so the list keeps updating without reinstalling the extension;

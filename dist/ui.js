@@ -1,9 +1,13 @@
-/* plugin-image-gen — interface Studio.
+/* plugin-image-gen — panneau Studio.
  *
- * L'extension possède son moteur, ses modèles et cet écran. Elle ne propose
- * plus d'installation ici : les modèles vivent dans le catalogue de modèles de
- * l'application, où ils se mettent à jour tout seuls. Cet écran renvoie donc
- * vers le catalogue au lieu de lui faire concurrence avec une liste figée. */
+ * Rendu dans le document, sans racine fantôme : le panneau hérite du thème et
+ * des composants de l'application (`locaryn-card`, `locaryn-btn-*`,
+ * `locaryn-gen-*`) au lieu de recopier un style qui vieillit à part. Une
+ * racine fantôme isolait tout — le panneau sortait sans aucun style, et le
+ * thème de l'application n'avait plus prise dessus.
+ *
+ * L'extension possède son moteur et ses modèles ; les modèles se choisissent
+ * dans le catalogue de modèles de l'application, pas ici. */
 (function () {
   "use strict";
 
@@ -56,387 +60,6 @@
     if (lower.indexOf("flux") >= 0) return { steps: turbo ? 4 : 20, cfg: 1.0 };
     return { steps: turbo ? 6 : 20, cfg: 7.0 };
   }
-
-  var CSS = `
-:host {
-  display: block;
-  width: 100%;
-  color: var(--text, #e8edf5);
-  font-family: inherit;
-  box-sizing: border-box;
-}
-* { box-sizing: border-box; }
-button { font: inherit; }
-
-.ig-panel {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
-  align-items: start;
-  gap: 20px;
-}
-.ig-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-/* Une seule colonne dès que le panneau latéral et la toile ne tiennent plus
-   côte à côte : deux colonnes étroites sont pires qu'une large. */
-@media (max-width: 900px) {
-  .ig-panel { grid-template-columns: minmax(0, 1fr); }
-}
-
-.ig-card {
-  background: var(--surface, rgba(255, 255, 255, 0.035));
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius, 12px);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.ig-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.ig-card-title {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-.ig-hint {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-faint, #96a3b8);
-}
-.ig-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-dim, #94a3b8);
-}
-.ig-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ig-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: rgba(101, 211, 145, 0.12);
-  color: #65d391;
-  border: 1px solid rgba(101, 211, 145, 0.25);
-}
-.ig-badge.ig-badge-empty {
-  background: rgba(248, 113, 113, 0.1);
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.25);
-}
-
-.ig-tabs {
-  display: flex;
-  gap: 6px;
-}
-.ig-tab {
-  flex: 1;
-  padding: 9px 12px;
-  background: var(--surface, rgba(255, 255, 255, 0.035));
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-sm, 8px);
-  color: var(--text-dim, #94a3b8);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.ig-tab:hover { color: var(--text, #e8edf5); }
-.ig-tab-on {
-  background: var(--accent-soft, rgba(110, 168, 254, 0.15));
-  border-color: var(--accent, #6ea8fe);
-  color: var(--accent, #6ea8fe);
-}
-
-.ig-input,
-.ig-select,
-.ig-textarea {
-  width: 100%;
-  padding: 9px 11px;
-  background: var(--bg, rgba(0, 0, 0, 0.25));
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-sm, 8px);
-  color: var(--text, #e8edf5);
-  font-size: 13px;
-  font-family: inherit;
-}
-.ig-textarea {
-  min-height: 110px;
-  resize: vertical;
-  line-height: 1.5;
-}
-.ig-input:focus,
-.ig-select:focus,
-.ig-textarea:focus {
-  outline: none;
-  border-color: var(--accent, #6ea8fe);
-}
-.ig-input:disabled,
-.ig-select:disabled,
-.ig-textarea:disabled { opacity: 0.55; }
-
-.ig-ratios {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
-  gap: 6px;
-}
-.ig-ratio {
-  padding: 8px 6px;
-  background: var(--bg, rgba(0, 0, 0, 0.25));
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-sm, 8px);
-  color: var(--text-dim, #94a3b8);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-}
-.ig-ratio span { font-size: 10px; color: var(--text-faint, #96a3b8); }
-.ig-ratio-on {
-  border-color: var(--accent, #6ea8fe);
-  color: var(--accent, #6ea8fe);
-}
-
-.ig-btn {
-  padding: 8px 12px;
-  border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  background: transparent;
-  color: var(--text-dim, #94a3b8);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.ig-btn:hover { color: var(--text, #e8edf5); }
-.ig-btn:disabled { opacity: 0.5; cursor: default; }
-.ig-btn-primary {
-  width: 100%;
-  padding: 12px 16px;
-  border: none;
-  border-radius: var(--radius-sm, 8px);
-  background: var(--accent, #6ea8fe);
-  color: var(--accent-contrast, #0b1220);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ig-btn-primary:disabled { opacity: 0.5; cursor: default; }
-
-.ig-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  background: transparent;
-  border: 1px dashed var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-sm, 8px);
-  color: var(--text-dim, #94a3b8);
-  font-size: 12px;
-  cursor: pointer;
-}
-.ig-adv-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-}
-.ig-slider-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.ig-value {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent, #6ea8fe);
-  font-variant-numeric: tabular-nums;
-}
-.ig-range { width: 100%; accent-color: var(--accent, #6ea8fe); }
-.ig-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-dim, #94a3b8);
-  cursor: pointer;
-}
-
-.ig-drop {
-  border: 1px dashed var(--border, rgba(255, 255, 255, 0.18));
-  border-radius: var(--radius-sm, 8px);
-  padding: 18px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-faint, #96a3b8);
-  cursor: pointer;
-}
-.ig-drop:hover { border-color: var(--accent, #6ea8fe); }
-.ig-drop img {
-  max-width: 100%;
-  max-height: 160px;
-  border-radius: var(--radius-sm, 8px);
-  margin-bottom: 8px;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.ig-note {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm, 8px);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.ig-note-info {
-  background: rgba(110, 168, 254, 0.1);
-  border: 1px solid rgba(110, 168, 254, 0.25);
-  color: var(--accent, #6ea8fe);
-}
-.ig-note-error {
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  color: #f87171;
-}
-
-.ig-canvas {
-  min-height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  text-align: center;
-}
-.ig-canvas-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  max-width: 420px;
-}
-.ig-canvas-mark {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  font-size: 24px;
-  background: var(--accent-soft, rgba(110, 168, 254, 0.15));
-  color: var(--accent, #6ea8fe);
-}
-.ig-result-img {
-  max-width: 100%;
-  max-height: 62vh;
-  border-radius: var(--radius, 12px);
-  display: block;
-  cursor: zoom-in;
-}
-.ig-result-bar {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.ig-progress {
-  width: 100%;
-  max-width: 340px;
-  height: 4px;
-  border-radius: 99px;
-  overflow: hidden;
-  background: var(--border, rgba(255, 255, 255, 0.1));
-}
-.ig-progress i {
-  display: block;
-  height: 100%;
-  width: 35%;
-  border-radius: 99px;
-  background: var(--accent, #6ea8fe);
-  animation: ig-slide 1.4s ease-in-out infinite;
-}
-@keyframes ig-slide {
-  0% { transform: translateX(-110%); }
-  100% { transform: translateX(320%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ig-progress i { animation: none; width: 100%; }
-}
-
-.ig-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-.ig-thumb {
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-sm, 8px);
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--bg, rgba(0, 0, 0, 0.25));
-}
-.ig-thumb img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  display: block;
-}
-.ig-thumb figcaption {
-  padding: 6px 8px;
-  font-size: 10px;
-  color: var(--text-faint, #96a3b8);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ig-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.78);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.ig-modal-box {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: center;
-  max-width: 92vw;
-}
-.ig-modal-box img {
-  max-width: 92vw;
-  max-height: 78vh;
-  border-radius: var(--radius, 12px);
-}
-`;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -557,7 +180,6 @@ button { font: inherit; }
       this.currentResult = null;
       this.gallery = [];
       this.lightbox = null;
-      this.attachShadow({ mode: "open" });
     }
 
     connectedCallback() {
@@ -624,7 +246,7 @@ button { font: inherit; }
 
       this.isGenerating = true;
       this.error = null;
-      this.notice = "Génération en cours sur votre machine…";
+      this.notice = null;
       this.render();
 
       return invoke("generate_image", {
@@ -642,14 +264,9 @@ button { font: inherit; }
         .then(function (result) {
           var paths = Array.isArray(result.paths) ? result.paths : [];
           if (!paths.length) throw new Error("Le moteur n'a retourné aucun fichier image.");
-          var image = {
-            path: paths[0],
-            url: assetUrl(paths[0]),
-            prompt: prompt
-          };
+          var image = { path: paths[0], url: assetUrl(paths[0]), prompt: prompt };
           self.currentResult = image;
           self.gallery = [image].concat(self.gallery).slice(0, 16);
-          self.notice = null;
           toast("Image générée", "success");
 
           var b = bridge();
@@ -661,7 +278,6 @@ button { font: inherit; }
           }
         })
         .catch(function (error) {
-          self.notice = null;
           self.error = String((error && error.message) || error);
           toast(self.error, "error");
         })
@@ -674,53 +290,37 @@ button { font: inherit; }
     /** Recopier ce que contiennent les champs libres avant un nouveau rendu :
      *  `innerHTML` les recrée, et la saisie en cours serait perdue. */
     captureInputs() {
-      var root = this.shadowRoot;
-      if (!root) return;
-      var promptEl = root.querySelector("#ig-prompt");
+      var promptEl = this.querySelector("#ig-prompt");
       if (promptEl) this.prompt = promptEl.value;
-      var negEl = root.querySelector("#ig-negative");
+      var negEl = this.querySelector("#ig-negative");
       if (negEl) this.negativePrompt = negEl.value;
-      var modelEl = root.querySelector("#ig-model");
+      var modelEl = this.querySelector("#ig-model");
       if (modelEl && modelEl.value) this.selectedModel = modelEl.value;
     }
 
     // ── Rendu ──────────────────────────────────────────────────────────────
 
-    renderStatusBadge() {
-      if (this.isLoadingModels) return '<span class="ig-badge">Recherche…</span>';
-      if (this.models.length === 0) {
-        return '<span class="ig-badge ig-badge-empty">Aucun modèle</span>';
-      }
-      var plural = this.models.length > 1 ? "s" : "";
-      return (
-        '<span class="ig-badge">' +
-        this.models.length +
-        " modèle" +
-        plural +
-        " installé" +
-        plural +
-        "</span>"
-      );
-    }
-
-    renderModelCard() {
+    renderModelBlock() {
+      var self = this;
       if (this.models.length === 0) {
         return (
-          '<section class="ig-card">' +
-          '<div class="ig-card-head"><span class="ig-card-title">Modèle de diffusion</span>' +
-          this.renderStatusBadge() +
-          "</div>" +
-          '<p class="ig-hint">Les modèles d\'image se trouvent dans le catalogue de modèles de ' +
-          "l'application, avec le filtre « Génération d'image ». Ils y restent à jour et " +
-          "s'installent avec les fichiers qui les accompagnent.</p>" +
-          '<button type="button" class="ig-btn" id="ig-open-catalog">' +
-          "Ouvrir le catalogue de modèles</button>" +
-          '<button type="button" class="ig-btn" id="ig-refresh">Chercher à nouveau</button>' +
-          "</section>"
+          '<section class="locaryn-gen-block">' +
+          '<div class="locaryn-gen-block-head">' +
+          '<span class="locaryn-gen-label">Modèle de diffusion</span>' +
+          '<span class="locaryn-tag">' +
+          (this.isLoadingModels ? "Recherche…" : "Aucun") +
+          "</span></div>" +
+          '<p class="locaryn-field-hint">Les modèles d\'image sont dans le catalogue de modèles, ' +
+          "sous le filtre « Génération d'image ». Ils y restent à jour et s'installent avec les " +
+          "fichiers qui les accompagnent.</p>" +
+          '<div class="locaryn-gen-actions" style="justify-content:flex-start">' +
+          '<button type="button" class="locaryn-btn-primary" id="ig-open-catalog">' +
+          "Ouvrir le catalogue</button>" +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-refresh">Chercher à nouveau</button>' +
+          "</div></section>"
         );
       }
 
-      var self = this;
       var options = this.models
         .map(function (model) {
           var missing = model.missing.length
@@ -738,97 +338,107 @@ button { font: inherit; }
         })
         .join("");
 
-      var current = this.models.find(function (model) {
+      var current = this.models.filter(function (model) {
         return model.name === self.selectedModel;
-      });
+      })[0];
       var warning =
         current && current.missing.length
-          ? '<p class="ig-note ig-note-error">Fichiers manquants : ' +
+          ? '<p class="locaryn-gen-error">Fichiers manquants : ' +
             escapeHtml(current.missing.join(", ")) +
             ". Réinstallez ce modèle depuis le catalogue pour récupérer ses compagnons.</p>"
           : "";
+      var plural = this.models.length > 1 ? "s" : "";
 
       return (
-        '<section class="ig-card">' +
-        '<div class="ig-card-head"><span class="ig-card-title">Modèle de diffusion</span>' +
-        this.renderStatusBadge() +
-        "</div>" +
-        '<select class="ig-select" id="ig-model"' +
+        '<section class="locaryn-gen-block">' +
+        '<div class="locaryn-gen-block-head">' +
+        '<span class="locaryn-gen-label">Modèle de diffusion</span>' +
+        '<span class="locaryn-gen-model-count">' +
+        this.models.length +
+        " installé" +
+        plural +
+        "</span></div>" +
+        '<select class="locaryn-select" id="ig-model"' +
         (this.isGenerating ? " disabled" : "") +
         ">" +
         options +
         "</select>" +
         warning +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<button type="button" class="ig-btn" id="ig-refresh">Actualiser</button>' +
-        '<button type="button" class="ig-btn" id="ig-open-catalog">Catalogue de modèles</button>' +
-        "</div>" +
-        "</section>"
+        '<div class="locaryn-gen-actions" style="justify-content:flex-start">' +
+        '<button type="button" class="locaryn-btn-ghost" id="ig-refresh">Actualiser</button>' +
+        '<button type="button" class="locaryn-btn-ghost" id="ig-open-catalog">Catalogue</button>' +
+        "</div></section>"
       );
     }
 
     renderControls() {
       var self = this;
       var busy = this.isGenerating;
+
       var ratios = RATIOS.map(function (ratio, index) {
-        var on = self.ratio === ratio ? " ig-ratio-on" : "";
+        var on = self.ratio === ratio ? " locaryn-gen-choice-on" : "";
         return (
-          '<button type="button" class="ig-ratio' +
+          '<button type="button" class="locaryn-gen-choice' +
           on +
           '" data-ratio="' +
           index +
           '">' +
           escapeHtml(ratio.label) +
-          "<span>" +
+          "<small>" +
           escapeHtml(ratio.detail) +
-          "</span></button>"
+          "</small></button>"
         );
       }).join("");
 
       var source =
         this.mode === "txt2img"
           ? ""
-          : '<section class="ig-card"><div class="ig-field">' +
-            '<span class="ig-label">Image source</span>' +
-            '<div class="ig-drop" id="ig-drop">' +
+          : '<section class="locaryn-gen-block">' +
+            '<span class="locaryn-gen-label">Image source</span>' +
+            '<div class="locaryn-gen-dropzone' +
+            (this.sourceImage ? " locaryn-gen-dropzone-filled" : "") +
+            '" id="ig-drop">' +
             (this.sourceImage
-              ? '<img src="' +
+              ? '<img class="locaryn-gen-preview-img" src="' +
                 escapeHtml(this.sourceImage) +
-                '" alt="Image source">Cliquer pour changer'
-              : "Cliquer pour choisir une image") +
+                '" alt="Image source"><div class="locaryn-gen-drop-text">Cliquer pour changer</div>'
+              : '<div class="locaryn-gen-drop-text">Cliquer pour choisir une image</div>') +
             "</div>" +
             '<input type="file" id="ig-file" accept="image/*" hidden>' +
-            "</div></section>";
+            "</section>";
 
       var advanced = this.showAdvanced
-        ? '<section class="ig-card">' +
-          '<div class="ig-field"><label class="ig-label" for="ig-negative">Prompt négatif</label>' +
-          '<input type="text" class="ig-input" id="ig-negative" placeholder="flou, déformation, basse qualité…" value="' +
+        ? '<section class="locaryn-gen-advanced-panel">' +
+          '<div class="locaryn-gen-field">' +
+          '<label class="locaryn-gen-label" for="ig-negative">Prompt négatif</label>' +
+          '<input type="text" class="locaryn-input" id="ig-negative" placeholder="flou, déformation, basse qualité…" value="' +
           escapeHtml(this.negativePrompt) +
           '"' +
           (busy ? " disabled" : "") +
           "></div>" +
-          '<div class="ig-adv-grid">' +
-          '<div><div class="ig-slider-head"><span class="ig-label">Étapes</span>' +
-          '<span class="ig-value" id="ig-steps-value">' +
+          '<div class="locaryn-gen-adv-row">' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<div class="locaryn-gen-field-row"><span class="locaryn-gen-label">Étapes</span>' +
+          '<span class="locaryn-gen-val" id="ig-steps-value">' +
           this.steps +
           "</span></div>" +
-          '<input type="range" class="ig-range" id="ig-steps" min="1" max="60" value="' +
+          '<input type="range" id="ig-steps" min="1" max="60" value="' +
           this.steps +
           '"' +
           (busy ? " disabled" : "") +
           "></div>" +
-          '<div><div class="ig-slider-head"><span class="ig-label">Guidage</span>' +
-          '<span class="ig-value" id="ig-cfg-value">' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<div class="locaryn-gen-field-row"><span class="locaryn-gen-label">Guidage</span>' +
+          '<span class="locaryn-gen-val" id="ig-cfg-value">' +
           this.cfgScale +
           "</span></div>" +
-          '<input type="range" class="ig-range" id="ig-cfg" min="0.5" max="20" step="0.5" value="' +
+          '<input type="range" id="ig-cfg" min="0.5" max="20" step="0.5" value="' +
           this.cfgScale +
           '"' +
           (busy ? " disabled" : "") +
-          "></div>" +
-          "</div>" +
-          '<label class="ig-check"><input type="checkbox" id="ig-uncensored"' +
+          "></div></div>" +
+          '<label class="locaryn-gen-hint" style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+          '<input type="checkbox" id="ig-uncensored"' +
           (this.uncensored ? " checked" : "") +
           (busy ? " disabled" : "") +
           "> Mode sans filtre (utilise l'encodeur abliteré s'il est installé)</label>" +
@@ -836,36 +446,36 @@ button { font: inherit; }
         : "";
 
       return (
-        '<div class="ig-column">' +
-        '<div class="ig-tabs">' +
-        '<button type="button" class="ig-tab' +
-        (this.mode === "txt2img" ? " ig-tab-on" : "") +
+        '<div class="locaryn-gen-col">' +
+        '<div class="locaryn-gen-tabs">' +
+        '<button type="button" class="locaryn-gen-tab' +
+        (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
-        '<button type="button" class="ig-tab' +
-        (this.mode === "img2img" ? " ig-tab-on" : "") +
+        '<button type="button" class="locaryn-gen-tab' +
+        (this.mode === "img2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="img2img">Image → Image</button>' +
-        '<button type="button" class="ig-tab' +
-        (this.mode === "edit" ? " ig-tab-on" : "") +
+        '<button type="button" class="locaryn-gen-tab' +
+        (this.mode === "edit" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="edit">Retouche</button>' +
         "</div>" +
-        this.renderModelCard() +
-        '<section class="ig-card"><div class="ig-field">' +
-        '<label class="ig-label" for="ig-prompt">Description</label>' +
-        '<textarea class="ig-textarea" id="ig-prompt" placeholder="Décrivez l\'image à produire…"' +
+        this.renderModelBlock() +
+        '<section class="locaryn-gen-block">' +
+        '<label class="locaryn-gen-label" for="ig-prompt">Description</label>' +
+        '<textarea class="locaryn-textarea locaryn-gen-textarea" id="ig-prompt" rows="5" placeholder="Décrivez l\'image à produire…"' +
         (busy ? " disabled" : "") +
         ">" +
         escapeHtml(this.prompt) +
-        "</textarea></div></section>" +
+        "</textarea></section>" +
         source +
-        '<section class="ig-card"><div class="ig-field">' +
-        '<span class="ig-label">Format</span>' +
-        '<div class="ig-ratios">' +
+        '<section class="locaryn-gen-block">' +
+        '<span class="locaryn-gen-label">Format</span>' +
+        '<div class="locaryn-gen-choices">' +
         ratios +
-        "</div></div></section>" +
-        '<button type="button" class="ig-toggle" id="ig-adv">' +
-        "<span>" +
-        (this.showAdvanced ? "Masquer" : "Afficher") +
-        " les options avancées</span><span>" +
+        "</div></section>" +
+        '<button type="button" class="locaryn-gen-advanced-toggle' +
+        (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
+        '" id="ig-adv"><span>Options avancées</span>' +
+        '<span class="locaryn-gen-advanced-summary">' +
         this.width +
         "×" +
         this.height +
@@ -875,9 +485,12 @@ button { font: inherit; }
         this.cfgScale +
         "</span></button>" +
         advanced +
-        (this.error ? '<p class="ig-note ig-note-error">' + escapeHtml(this.error) + "</p>" : "") +
-        (this.notice ? '<p class="ig-note ig-note-info">' + escapeHtml(this.notice) + "</p>" : "") +
-        '<button type="button" class="ig-btn-primary" id="ig-generate"' +
+        (this.error
+          ? '<p class="locaryn-gen-error">' + escapeHtml(this.error) + "</p>"
+          : "") +
+        '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn' +
+        (busy ? " locaryn-gen-generate-btn-busy" : "") +
+        '" id="ig-generate"' +
         (busy || this.models.length === 0 ? " disabled" : "") +
         ">" +
         (busy
@@ -894,29 +507,30 @@ button { font: inherit; }
       var body;
       if (this.isGenerating) {
         body =
-          '<div class="ig-canvas-empty">' +
-          '<div class="ig-canvas-mark">◐</div>' +
-          '<p class="ig-hint">Diffusion en cours. Le calcul se fait sur votre machine : ' +
-          "comptez de quelques secondes à plusieurs minutes selon le modèle.</p>" +
-          '<div class="ig-progress"><i></i></div>' +
+          '<div class="locaryn-gen-canvas-inner">' +
+          '<div class="locaryn-gen-placeholder"><div class="locaryn-gen-shimmer"></div>' +
+          '<div class="locaryn-gen-pulse-ring"></div></div>' +
+          '<p class="locaryn-field-hint">Diffusion en cours sur votre machine : de quelques ' +
+          "secondes à plusieurs minutes selon le modèle.</p>" +
+          '<div class="locaryn-gen-progress-bar"><div class="locaryn-gen-progress-fill"></div></div>' +
           "</div>";
       } else if (this.currentResult) {
         body =
-          '<div class="ig-canvas-empty" style="max-width:none">' +
-          '<img class="ig-result-img" id="ig-result" src="' +
+          '<div class="locaryn-gen-canvas-inner" style="max-width:none">' +
+          '<img class="locaryn-gen-result-img" id="ig-result" src="' +
           escapeHtml(this.currentResult.url) +
           '" alt="' +
           escapeHtml(this.currentResult.prompt) +
           '">' +
-          '<div class="ig-result-bar">' +
-          '<button type="button" class="ig-btn" id="ig-save">Télécharger</button>' +
-          '<button type="button" class="ig-btn" id="ig-copy">Copier</button>' +
+          '<div class="locaryn-gen-actions" style="justify-content:center">' +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-save">Télécharger</button>' +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-copy">Copier</button>' +
           "</div></div>";
       } else {
         body =
-          '<div class="ig-canvas-empty">' +
-          '<div class="ig-canvas-mark">✦</div>' +
-          '<p class="ig-hint">' +
+          '<div class="locaryn-gen-canvas-inner">' +
+          '<div class="locaryn-gen-icon">✦</div>' +
+          '<p class="locaryn-field-hint">' +
           (this.models.length === 0
             ? "Installez un modèle depuis le catalogue de modèles pour commencer."
             : "Décrivez une image à gauche, puis lancez la génération. Le résultat s'affichera ici.") +
@@ -924,15 +538,17 @@ button { font: inherit; }
       }
 
       var gallery = this.gallery.length
-        ? '<section class="ig-card">' +
-          '<div class="ig-card-head"><span class="ig-card-title">Images de cette session (' +
+        ? '<section class="locaryn-gen-block">' +
+          '<div class="locaryn-gen-block-head">' +
+          '<span class="locaryn-gen-label">Images de cette session</span>' +
+          '<span class="locaryn-gen-model-count">' +
           this.gallery.length +
-          ")</span></div>" +
-          '<div class="ig-gallery">' +
+          "</span></div>" +
+          '<div class="locaryn-gen-thumbs">' +
           this.gallery
             .map(function (image, index) {
               return (
-                '<figure class="ig-thumb" data-thumb="' +
+                '<figure class="locaryn-gen-thumb" data-thumb="' +
                 index +
                 '"><img src="' +
                 escapeHtml(image.url) +
@@ -948,8 +564,8 @@ button { font: inherit; }
         : "";
 
       return (
-        '<div class="ig-column">' +
-        '<section class="ig-card ig-canvas">' +
+        '<div class="locaryn-gen-col">' +
+        '<section class="locaryn-gen-block locaryn-gen-canvas">' +
         body +
         "</section>" +
         gallery +
@@ -958,24 +574,21 @@ button { font: inherit; }
     }
 
     render() {
-      if (!this.shadowRoot) return;
       var lightbox = this.lightbox
-        ? '<div class="ig-modal" id="ig-modal"><div class="ig-modal-box">' +
+        ? '<div class="locaryn-gen-lightbox" id="ig-modal">' +
+          '<div class="locaryn-gen-lightbox-inner">' +
           '<img src="' +
           escapeHtml(this.lightbox.url) +
           '" alt="Agrandissement">' +
-          '<div class="ig-result-bar">' +
-          '<button type="button" class="ig-btn" id="ig-lb-save">Télécharger</button>' +
-          '<button type="button" class="ig-btn" id="ig-lb-copy">Copier</button>' +
-          '<button type="button" class="ig-btn" id="ig-lb-close">Fermer</button>' +
+          '<div class="locaryn-gen-actions">' +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-lb-save">Télécharger</button>' +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-lb-copy">Copier</button>' +
+          '<button type="button" class="locaryn-btn-ghost" id="ig-lb-close">Fermer</button>' +
           "</div></div></div>"
         : "";
 
-      this.shadowRoot.innerHTML =
-        "<style>" +
-        CSS +
-        "</style>" +
-        '<div class="ig-panel">' +
+      this.innerHTML =
+        '<div class="locaryn-gen-split">' +
         this.renderControls() +
         this.renderCanvas() +
         "</div>" +
@@ -986,15 +599,13 @@ button { font: inherit; }
 
     bindEvents() {
       var self = this;
-      var root = this.shadowRoot;
-      if (!root) return;
 
       var on = function (selector, event, handler) {
-        var element = root.querySelector(selector);
+        var element = self.querySelector(selector);
         if (element) element.addEventListener(event, handler);
       };
       var onAll = function (selector, event, handler) {
-        root.querySelectorAll(selector).forEach(function (element) {
+        self.querySelectorAll(selector).forEach(function (element) {
           element.addEventListener(event, function () {
             handler(element);
           });
@@ -1040,12 +651,12 @@ button { font: inherit; }
       });
       on("#ig-steps", "input", function (event) {
         self.steps = Number(event.target.value);
-        var label = root.querySelector("#ig-steps-value");
+        var label = self.querySelector("#ig-steps-value");
         if (label) label.textContent = String(self.steps);
       });
       on("#ig-cfg", "input", function (event) {
         self.cfgScale = Number(event.target.value);
-        var label = root.querySelector("#ig-cfg-value");
+        var label = self.querySelector("#ig-cfg-value");
         if (label) label.textContent = String(self.cfgScale);
       });
       on("#ig-uncensored", "change", function (event) {
@@ -1057,7 +668,7 @@ button { font: inherit; }
         self.generate();
       });
 
-      var fileInput = root.querySelector("#ig-file");
+      var fileInput = this.querySelector("#ig-file");
       on("#ig-drop", "click", function () {
         if (fileInput) fileInput.click();
       });
