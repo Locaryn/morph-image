@@ -165,7 +165,11 @@ pub fn candidate_model_dirs() -> Vec<PathBuf> {
             if !dirs.contains(&p1) {
                 dirs.push(p1);
             }
-            let p2 = home.join(".local").join("share").join("Locaryn").join("models");
+            let p2 = home
+                .join(".local")
+                .join("share")
+                .join("Locaryn")
+                .join("models");
             if !dirs.contains(&p2) {
                 dirs.push(p2);
             }
@@ -275,8 +279,14 @@ pub fn discover_companions(models: &Path, family: ModelFamily, uncensored: bool)
     if family == ModelFamily::FullCheckpoint {
         return Companions::default();
     }
-    let vae = find_companion(models, &["ae.safetensors", "vae"], &[".onnx", "decoder", "taesd"])
-        .or_else(|| find_companion_in_all_dirs(&["ae.safetensors", "vae"], &[".onnx", "decoder", "taesd"]));
+    let vae = find_companion(
+        models,
+        &["ae.safetensors", "vae"],
+        &[".onnx", "decoder", "taesd"],
+    )
+    .or_else(|| {
+        find_companion_in_all_dirs(&["ae.safetensors", "vae"], &[".onnx", "decoder", "taesd"])
+    });
     match family {
         ModelFamily::ZImage => Companions {
             vae,
@@ -284,8 +294,9 @@ pub fn discover_companions(models: &Path, family: ModelFamily, uncensored: bool)
                 find_companion(models, &["abliterat", "heretic"], &[])
                     .or_else(|| find_companion_in_all_dirs(&["abliterat", "heretic"], &[]))
             } else {
-                find_companion(models, &["qwen3-4b", "qwen3_4b"], &["tts", "abliterat"])
-                    .or_else(|| find_companion_in_all_dirs(&["qwen3-4b", "qwen3_4b"], &["tts", "abliterat"]))
+                find_companion(models, &["qwen3-4b", "qwen3_4b"], &["tts", "abliterat"]).or_else(
+                    || find_companion_in_all_dirs(&["qwen3-4b", "qwen3_4b"], &["tts", "abliterat"]),
+                )
             },
             ..Companions::default()
         },
@@ -331,25 +342,85 @@ pub fn missing_companions(family: ModelFamily, companions: &Companions) -> Vec<&
 /// Companion files cannot render an image by themselves. Everything else in
 /// the candidate model directories is a candidate, including unfamiliar
 /// repository names and new quantization names.
-fn is_companion_name(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
+/// Fichiers qui accompagnent un checkpoint sans pouvoir rendre une image :
+/// VAE, encodeurs de texte, projecteurs, tokeniseurs.
+fn is_companion_name(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
     [
-        "mmproj-", "ae.safetensors", "vae", "clip", "t5xxl", "t5-xxl",
-        "text_encoder", "text-encoder", "abliterat", "heretic", "qwen", "embed",
+        "mmproj-",
+        "ae.safetensors",
+        "vae",
+        "clip",
+        "t5xxl",
+        "t5-xxl",
+        "text_encoder",
+        "text-encoder",
+        "tokenizer",
+        "embed",
     ]
     .iter()
     .any(|part| lower.contains(part))
 }
 
-pub fn is_diffusion_checkpoint(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
+/// Familles de diffusion reconnues, cherchées dans le chemin entier.
+const DIFFUSION_FAMILIES: &[&str] = &[
+    "stable-diffusion",
+    "stable_diffusion",
+    "sd-v1",
+    "sd_v1",
+    "sd15",
+    "sd3",
+    "sdxl",
+    "sd_xl",
+    "flux",
+    "z_image",
+    "z-image",
+    "z_img",
+    "zimg",
+    "qwen-image",
+    "qwen_image",
+    "krea",
+    "dreamshaper",
+    "juggernaut",
+    "pony",
+    "playground-v",
+    "kolors",
+    "hunyuan-dit",
+    "pixart",
+    "deliberate",
+    "realvis",
+    "illustrious",
+    "noobai",
+];
+
+fn names_a_diffusion_family(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    DIFFUSION_FAMILIES.iter().any(|part| lower.contains(part))
+}
+
+/// `path` est relatif au dossier de modèles et normalisé en `/`, pas seulement
+/// le nom du fichier : `Qwen__Qwen3-TTS-…/model.safetensors` ne se distingue
+/// d'un checkpoint que par son dossier.
+///
+/// La règle était « tout ce qui n'est pas un fichier compagnon ». La
+/// bibliothèque de poids d'un utilisateur contient aussi ses modèles de voix
+/// et de texte, et leurs `model.safetensors` étaient proposés comme modèles
+/// d'image — un choix qui ne pouvait produire aucune image. Exiger qu'une
+/// famille de diffusion soit nommée coûte un nom exotique de temps en temps,
+/// et l'ajouter à [`DIFFUSION_FAMILIES`] le rattrape.
+pub fn is_diffusion_checkpoint(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
     let valid_extension = [".gguf", ".safetensors", ".ckpt"]
         .iter()
         .any(|suffix| lower.ends_with(suffix));
-    valid_extension
-        && !lower.ends_with(".part")
-        && !lower.ends_with(".tmp")
-        && !is_companion_name(name)
+    if !valid_extension
+        || lower.ends_with(".part")
+        || lower.ends_with(".tmp")
+        || is_companion_name(path)
+    {
+        return false;
+    }
+    names_a_diffusion_family(path)
 }
 
 fn collect_models(dir: &Path, relative: &Path, output: &mut Vec<String>) {
@@ -368,8 +439,11 @@ fn collect_models(dir: &Path, relative: &Path, output: &mut Vec<String>) {
             } else {
                 collect_models(&path, &rel, output);
             }
-        } else if is_diffusion_checkpoint(&name) {
-            output.push(rel.to_string_lossy().replace('\\', "/"));
+        } else {
+            let rel_path = rel.to_string_lossy().replace('\\', "/");
+            if is_diffusion_checkpoint(&rel_path) {
+                output.push(rel_path);
+            }
         }
     }
 }
@@ -394,10 +468,7 @@ pub fn resolve_model_path(raw: &str) -> PathBuf {
         if candidate.exists() {
             return candidate;
         }
-        let clean = raw
-            .split(['/', '\\'])
-            .next_back()
-            .unwrap_or(raw);
+        let clean = raw.split(['/', '\\']).next_back().unwrap_or(raw);
         let candidate_clean = dir.join(clean);
         if candidate_clean.exists() {
             return candidate_clean;
@@ -471,7 +542,10 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
                     )
             });
         let Some(checkpoint) = checkpoint else {
-            return Err(format!("dossier de modèle invalide : {}", request.model_path.display()));
+            return Err(format!(
+                "dossier de modèle invalide : {}",
+                request.model_path.display()
+            ));
         };
         args.extend(["-m".into(), checkpoint.to_string_lossy().to_string()]);
     } else {
@@ -481,10 +555,16 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
         }
         match family {
             ModelFamily::FullCheckpoint => {
-                args.extend(["-m".into(), request.model_path.to_string_lossy().to_string()]);
+                args.extend([
+                    "-m".into(),
+                    request.model_path.to_string_lossy().to_string(),
+                ]);
             }
             ModelFamily::ZImage | ModelFamily::Flux => {
-                args.extend(["--diffusion-model".into(), request.model_path.to_string_lossy().to_string()]);
+                args.extend([
+                    "--diffusion-model".into(),
+                    request.model_path.to_string_lossy().to_string(),
+                ]);
                 if let Some(vae) = &companions.vae {
                     args.extend(["--vae".into(), vae.to_string_lossy().to_string()]);
                 }
@@ -546,7 +626,9 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         .filter(|model| !model.trim().is_empty())
         .map(str::to_string)
         .or_else(|| list_image_models().into_iter().next())
-        .ok_or_else(|| "aucun modèle de diffusion installé dans le stockage du plugin".to_string())?;
+        .ok_or_else(|| {
+            "aucun modèle de diffusion installé dans le stockage du plugin".to_string()
+        })?;
     let model_path = validate_model_path(&resolve_model_path(&selected))?;
     let model_name = model_path
         .file_name()
@@ -576,7 +658,8 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         .as_deref()
         .map(|data| {
             let path = std::env::temp_dir().join(format!("locaryn-image-input-{stamp}.png"));
-            std::fs::write(&path, decode_data_url(data)?).map_err(|e| format!("image source : {e}"))?;
+            std::fs::write(&path, decode_data_url(data)?)
+                .map_err(|e| format!("image source : {e}"))?;
             Ok::<PathBuf, String>(path)
         })
         .transpose()?;
@@ -625,11 +708,17 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
             .await
             .map_err(|e| format!("attente du moteur : {e}"))?;
         let (_, expected) = batch_output(&out_file, request.variants.clamp(1, 8));
-        let paths = expected.into_iter().filter(|path| path.is_file()).collect::<Vec<_>>();
+        let paths = expected
+            .into_iter()
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
         if !status.success() || paths.is_empty() {
             return Err(format!(
                 "génération échouée : {}",
-                errors.last().map(String::as_str).unwrap_or("aucune image écrite")
+                errors
+                    .last()
+                    .map(String::as_str)
+                    .unwrap_or("aucune image écrite")
             ));
         }
         Ok(paths)
@@ -660,7 +749,12 @@ fn hide_console(command: &mut tokio::process::Command) {
 }
 
 fn decode_data_url(input: &str) -> Result<Vec<u8>, String> {
-    decode_base64(input.split_once(',').map(|(_, payload)| payload).unwrap_or(input))
+    decode_base64(
+        input
+            .split_once(',')
+            .map(|(_, payload)| payload)
+            .unwrap_or(input),
+    )
 }
 
 fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
@@ -767,7 +861,9 @@ pub async fn install_runtime(request: RuntimeInstallRequest) -> Result<String, S
         return Err("le runtime doit être un asset HTTPS de GitHub".into());
     }
     if source.to_ascii_lowercase().ends_with(".zip") {
-        return Err("le runtime doit être un exécutable stable-diffusion.cpp, pas une archive ZIP".into());
+        return Err(
+            "le runtime doit être un exécutable stable-diffusion.cpp, pas une archive ZIP".into(),
+        );
     }
     let file_name = if cfg!(windows) { "sd.exe" } else { "sd" };
     let destination = plugin_root().join("bin").join(file_name);
@@ -831,7 +927,11 @@ async fn download_file(
             .await
             .map_err(|e| format!("téléchargement : {e}"))?;
         if !response.status().is_success() {
-            return Err(format!("téléchargement HTTP {} pour {}", response.status(), url));
+            return Err(format!(
+                "téléchargement HTTP {} pour {}",
+                response.status(),
+                url
+            ));
         }
         let mut file = tokio::fs::File::create(&part)
             .await
@@ -864,18 +964,47 @@ mod tests {
         assert_eq!(classify_model("z_image_turbo-Q8.gguf"), ModelFamily::ZImage);
         assert_eq!(classify_model("z-img-Q4.gguf"), ModelFamily::ZImage);
         assert_eq!(classify_model("flux1-schnell-Q4.gguf"), ModelFamily::Flux);
-        assert_eq!(classify_model("sdxl-turbo-Q4.gguf"), ModelFamily::FullCheckpoint);
+        assert_eq!(
+            classify_model("sdxl-turbo-Q4.gguf"),
+            ModelFamily::FullCheckpoint
+        );
         assert_eq!(default_sampling("z_image_turbo-Q8.gguf"), (8, 1.0));
         assert_eq!(default_sampling("flux1-schnell-Q4.gguf"), (4, 1.0));
     }
 
     #[test]
-    fn unknown_checkpoint_names_are_detected_and_companions_hidden() {
-        assert!(is_diffusion_checkpoint("L3.2-8X3B-MOE-Dark-Champion-Q3.gguf"));
-        assert!(is_diffusion_checkpoint("custom-style-Q6.safetensors"));
+    fn checkpoints_are_recognised_and_companions_hidden() {
+        assert!(is_diffusion_checkpoint("z_image_turbo-Q8_0.gguf"));
+        assert!(is_diffusion_checkpoint("flux1-schnell-Q4_0.gguf"));
+        assert!(is_diffusion_checkpoint("sd_xl_turbo_1.0.q8_0.gguf"));
+        assert!(is_diffusion_checkpoint(
+            "stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf"
+        ));
+        // Un checkpoint abliteré reste un checkpoint : c'est l'encodeur de
+        // texte qui est abliteré séparément, pas le modèle de diffusion.
+        assert!(is_diffusion_checkpoint("Z-Image-AbliteratedV1.Q4_K_M.gguf"));
         assert!(!is_diffusion_checkpoint("ae.safetensors"));
         assert!(!is_diffusion_checkpoint("decoder_fp32_fix.onnx"));
+        // L'encodeur de texte de Z-Image vit dans le même dossier que lui.
         assert!(!is_diffusion_checkpoint("Qwen3-4B-Instruct-Q4.gguf"));
+        assert!(!is_diffusion_checkpoint(
+            "L3.2-8X3B-MOE-Dark-Champion-Q3.gguf"
+        ));
+    }
+
+    /// Un dépôt de voix contient lui aussi un `model.safetensors` ; seul son
+    /// dossier le distingue d'un checkpoint de diffusion.
+    #[test]
+    fn weights_nested_in_a_non_diffusion_repo_are_not_offered() {
+        assert!(!is_diffusion_checkpoint(
+            "Qwen__Qwen3-TTS-12Hz-0.6B-Base/model.safetensors"
+        ));
+        assert!(!is_diffusion_checkpoint(
+            "Qwen__Qwen3-TTS-12Hz-1.7B-CustomVoice/speech_tokenizer/model.safetensors"
+        ));
+        assert!(is_diffusion_checkpoint(
+            "stable-diffusion-xl/unet/diffusion_pytorch_model.safetensors"
+        ));
     }
 
     #[test]
@@ -889,7 +1018,10 @@ mod tests {
 
     #[test]
     fn data_url_and_batch_paths_are_valid() {
-        assert_eq!(decode_data_url("data:image/png;base64,aGVsbG8=").unwrap(), b"hello");
+        assert_eq!(
+            decode_data_url("data:image/png;base64,aGVsbG8=").unwrap(),
+            b"hello"
+        );
         let (pattern, files) = batch_output(Path::new("out/img.png"), 3);
         assert!(pattern.to_string_lossy().contains("img_%d.png"));
         assert_eq!(files[0], PathBuf::from("out/img_0.png"));

@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.4.0";
+const VERSION: &str = "1.4.3";
 
 #[tokio::main]
 async fn main() {
@@ -47,8 +47,14 @@ async fn handle_request(request: Value) -> Value {
         "tools/list" => success(id, tools_list()),
         "tools/call" => {
             let params = request.get("params").cloned().unwrap_or_else(|| json!({}));
-            let name = params.get("name").and_then(Value::as_str).unwrap_or_default();
-            let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+            let name = params
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let args = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
             match call_tool(name, args).await {
                 Ok(value) => success(id, text_content(value)),
                 Err(error) => error_response(id, -32000, error),
