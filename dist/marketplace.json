@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "image-gen",
+      "label": "Génération d’image",
+      "icon": "🖼️",
+      "matches": ["image-gen"],
+      "requires": ["image-gen"]
+    },
+    {
+      "id": "image-editing",
+      "label": "Édition d’image",
+      "icon": "✏️",
+      "matches": ["image-editor"],
+      "requires": ["image-editor"]
+    }
+  ],
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo (GGUF)",
+      "brand": "Z-Image / LeeJet",
+      "description": "Génération locale rapide en haute fidélité. Le plugin fournit aussi le VAE et l’encodeur de texte requis par stable-diffusion.cpp.",
+      "license": "Apache-2.0",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-11",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 6,
+          "tag": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 6.6,
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE compatible stable-diffusion.cpp"
+            },
+            {
+              "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "label": "Encodeur de texte Qwen3"
+            }
+          ]
+        },
+        {
+          "size": "Q8_0",
+          "params": 6,
+          "tag": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
+          "quants": ["Q8_0"],
+          "storageGb": 9.5,
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE compatible stable-diffusion.cpp"
+            },
+            {
+              "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "label": "Encodeur de texte Qwen3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "z-image-turbo-heretic",
+      "name": "Z-Image Turbo — sans limite",
+      "brand": "Z-Image / Heretic",
+      "description": "Variante utilisant un encodeur de texte ablaté. L’installation complète est déclarée et gérée par le plugin.",
+      "license": "Apache-2.0",
+      "contextWindow": "N/A",
+      "releaseDate": "2026-01",
+      "releaseYear": 2026,
+      "capabilities": ["image-gen", "image-editor", "uncensored"],
+      "variants": [
+        {
+          "size": "Q4_0 + encodeur heretic",
+          "params": 6,
+          "tag": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 6.6,
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE compatible stable-diffusion.cpp"
+            },
+            {
+              "url": "https://huggingface.co/bartowski/p-e-w_Qwen3-4B-Instruct-2507-heretic-GGUF/resolve/main/p-e-w_Qwen3-4B-Instruct-2507-heretic-Q4_K_M.gguf",
+              "file": "p-e-w_Qwen3-4B-Instruct-2507-heretic-Q4_K_M.gguf",
+              "label": "Encodeur de texte ablaté"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stable-diffusion-1-5",
+      "name": "Stable Diffusion 1.5 (GGUF)",
+      "brand": "RunwayML / Second State",
+      "description": "Checkpoint léger et rapide, adapté aux GPU modestes et au rendu CPU.",
+      "license": "CreativeML Open RAIL-M",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-05",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 1,
+          "tag": "https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 1.5
+        }
+      ]
+    },
+    {
+      "id": "sdxl-turbo",
+      "name": "SDXL Turbo (GGUF)",
+      "brand": "Stability AI / GPUStack",
+      "description": "Génération 1024 × 1024 en très peu d’étapes, adaptée aux aperçus rapides.",
+      "license": "Stability AI Community License",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-01",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 3,
+          "tag": "https://huggingface.co/gpustack/stable-diffusion-xl-1.0-turbo-GGUF/resolve/main/stable-diffusion-xl-1.0-turbo-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 2.8
+        }
+      ]
+    },
+    {
+      "id": "sdxl-base-1-0",
+      "name": "Stable Diffusion XL 1.0 (GGUF)",
+      "brand": "Stability AI / GPUStack",
+      "description": "Modèle SDXL généraliste en quantification GGUF pour la génération locale haute résolution.",
+      "license": "CreativeML Open RAIL++-M",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-03",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 3,
+          "tag": "https://huggingface.co/gpustack/stable-diffusion-xl-base-1.0-GGUF/resolve/main/stable-diffusion-xl-base-1.0-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 3.9
+        }
+      ]
+    },
+    {
+      "id": "flux-1-schnell",
+      "name": "FLUX.1 Schnell (GGUF)",
+      "brand": "Black Forest Labs / City96",
+      "description": "FLUX rapide en quatre étapes. Le plugin déclare le VAE et les deux encodeurs nécessaires.",
+      "license": "Apache-2.0",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-08",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 12,
+          "tag": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 10.1,
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE FLUX"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l.safetensors",
+              "file": "clip_l.safetensors",
+              "label": "Encodeur CLIP-L"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q4_0.gguf",
+              "file": "t5xxl-Q4_0.gguf",
+              "label": "Encodeur T5-XXL Q4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flux-1-dev",
+      "name": "FLUX.1 Dev (GGUF)",
+      "brand": "Black Forest Labs / City96",
+      "description": "Variante FLUX de développement privilégiant la fidélité et le détail. Usage soumis à sa licence non commerciale.",
+      "license": "FLUX.1-dev Non-Commercial License",
+      "contextWindow": "N/A",
+      "releaseDate": "2024-08",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0",
+          "params": 12,
+          "tag": "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_0.gguf",
+          "quants": ["Q4_0"],
+          "storageGb": 10.1,
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE FLUX"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l.safetensors",
+              "file": "clip_l.safetensors",
+              "label": "Encodeur CLIP-L"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q4_0.gguf",
+              "file": "t5xxl-Q4_0.gguf",
+              "label": "Encodeur T5-XXL Q4"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

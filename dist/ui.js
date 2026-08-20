@@ -1,60 +1,10 @@
-/* plugin-image-gen UI bundle: complete v0.3.17 styled interface for Locaryn Studio */
+/* plugin-image-gen UI bundle: model-agnostic Studio interface for Locaryn */
 (function () {
   "use strict";
 
   function bridge() {
     return window.locaryn || window.LocarynPluginAPI || null;
   }
-
-  var CATALOG = [
-    {
-      id: "z-image",
-      label: "Z-Image Turbo",
-      family: "Z-Image",
-      note: "Rapide, 1024px, excellent rendu photo et anime",
-      sources: [
-        "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
-        "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors",
-        "https://huggingface.co/second-state/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-      ],
-      defaultSteps: 8,
-      defaultCfg: 1.0
-    },
-    {
-      id: "flux",
-      label: "FLUX.1 Schnell",
-      family: "FLUX.1",
-      note: "Haute fidélité, rendu typographique et textures",
-      sources: [
-        "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_0.gguf",
-        "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors"
-      ],
-      defaultSteps: 4,
-      defaultCfg: 1.0
-    },
-    {
-      id: "sdxl",
-      label: "SDXL Turbo",
-      family: "SDXL",
-      note: "1024px temps réel en quelques étapes",
-      sources: [
-        "https://huggingface.co/second-state/SDXL-Turbo-GGUF/resolve/main/sdxl-turbo-Q4_0.gguf"
-      ],
-      defaultSteps: 6,
-      defaultCfg: 7.0
-    },
-    {
-      id: "sd15",
-      label: "Stable Diffusion 1.5",
-      family: "SD 1.5",
-      note: "Ultra-léger, idéal pour GPU modestes et CPU",
-      sources: [
-        "https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf"
-      ],
-      defaultSteps: 20,
-      defaultCfg: 7.0
-    }
-  ];
 
   var RATIOS = [
     { label: "1:1 (Carré)", w: 1024, h: 1024 },
@@ -130,11 +80,6 @@
   color: #65d391;
   border: 1px solid rgba(101, 211, 145, 0.25);
 }
-.img-gen-badge.empty {
-  background: rgba(248, 113, 113, 0.1);
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.25);
-}
 .img-gen-tabs {
   display: flex;
   gap: 8px;
@@ -190,7 +135,7 @@
   color: var(--accent, #6ea8fe);
   margin-left: 4px;
 }
-.img-gen-select, .img-gen-input, .img-gen-textarea {
+.img-gen-input, .img-gen-textarea {
   width: 100%;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
   border-radius: var(--radius-sm, 8px);
@@ -202,15 +147,12 @@
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.img-gen-select {
-  appearance: auto;
-}
 .img-gen-textarea {
   min-height: 90px;
   resize: vertical;
   line-height: 1.5;
 }
-.img-gen-select:focus, .img-gen-input:focus, .img-gen-textarea:focus {
+.img-gen-input:focus, .img-gen-textarea:focus {
   border-color: var(--accent, #6ea8fe);
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 110, 168, 254), 0.15);
 }
@@ -299,49 +241,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
-}
-.img-gen-catalog {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-.img-gen-catalog-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.15);
-}
-.img-gen-catalog-copy strong {
-  display: block;
-  font-size: 13px;
-  color: var(--text, #e8edf5);
-}
-.img-gen-catalog-copy span {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text-faint, #96a3b8);
-}
-.img-gen-install-btn {
-  padding: 6px 14px;
-  background: rgba(var(--accent-rgb, 110, 168, 254), 0.15);
-  border: 1px solid var(--accent, #6ea8fe);
-  border-radius: var(--radius-xs, 6px);
-  color: var(--accent, #6ea8fe);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-.img-gen-install-btn:hover {
-  background: var(--accent, #6ea8fe);
-  color: #08101d;
 }
 .img-gen-output-area {
   min-height: 0;
@@ -560,6 +459,51 @@
   color: #8ee2aa;
   font-size: 13px;
 }
+.img-gen-advanced-summary {
+  margin-left: auto;
+  color: var(--text-faint, #96a3b8);
+}
+.img-gen-field-plain {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.img-gen-adv-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.img-gen-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim, #94a3b8);
+  font-size: 12px;
+  cursor: pointer;
+}
+.img-gen-range {
+  accent-color: var(--accent, #6ea8fe);
+}
+.img-gen-result-title {
+  color: var(--accent, #6ea8fe);
+  font-size: 14px;
+  font-weight: 700;
+}
+.img-gen-result-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+@media (max-width: 640px) {
+  .img-gen-inline { gap: 12px; }
+  .img-gen-header { align-items: flex-start; padding: 14px; }
+  .img-gen-subtitle { max-width: 32ch; }
+  .img-gen-tabs { display: grid; grid-template-columns: 1fr; }
+  .img-gen-field { padding: 14px; }
+  .img-gen-actions, .img-gen-generate-btn { width: 100%; }
+  .img-gen-generate-btn { justify-content: center; }
+  .img-gen-advanced-summary { display: none; }
+}
 `;
 
   function parseValue(value) {
@@ -608,16 +552,12 @@
     return path;
   }
 
-  function normalizeModels(result) {
-    var raw = result && Array.isArray(result.models) ? result.models : [];
-    return raw.map(function (item) {
-      if (typeof item === "string") return { name: item, family: "diffusion" };
-      return {
-        name: String(item.name || item.path || ""),
-        family: String(item.family || "diffusion"),
-        missing: Array.isArray(item.missing) ? item.missing : []
-      };
-    }).filter(function (item) { return item.name; });
+  function studioError(error) {
+    var raw = String(error && (error.message || error) || "Erreur inconnue");
+    if (/mod[eè]le|checkpoint|poids de diffusion/i.test(raw)) {
+      return "La génération locale n'est pas encore prête. Installez les composants requis depuis le Marketplace.";
+    }
+    return raw;
   }
 
   function saveImage(url) {
@@ -644,8 +584,6 @@
     constructor() {
       super();
       this.mode = "txt2img"; // "txt2img" | "img2img" | "edit"
-      this.models = [];
-      this.selectedModel = "";
       this.prompt = "";
       this.negativePrompt = "";
       this.width = 1024;
@@ -654,59 +592,41 @@
       this.cfgScale = 7.0;
       this.sourceImage = null;
       this.showAdvanced = false;
-      this.showCatalog = false;
       this.uncensored = false;
       this.isGenerating = false;
-      this.isLoadingModels = true;
       this.error = null;
       this.notice = null;
       this.currentResult = null;
       this.gallery = [];
       this.lightbox = null;
       this.attachShadow({ mode: "open" });
+      this.installStyles();
+    }
+
+    installStyles() {
+      if (this.styleVersion === "1.5.0") return;
+      this.styleVersion = "1.5.0";
+      this.usesStyleElement = true;
+      // A constructed stylesheet is not treated as an inline <style> by a
+      // restrictive WebView CSP. Keep the element fallback for older engines.
+      if (typeof CSSStyleSheet !== "undefined" && "adoptedStyleSheets" in this.shadowRoot) {
+        try {
+          var sheet = new CSSStyleSheet();
+          sheet.replaceSync(CSS);
+          this.shadowRoot.adoptedStyleSheets = [sheet];
+          this.usesStyleElement = false;
+        } catch (_) {}
+      }
     }
 
     connectedCallback() {
+      this.installStyles();
       this.render();
-      this.refreshModels();
     }
 
-    refreshModels() {
-      var self = this;
-      this.isLoadingModels = true;
-      this.updateState();
-      return invoke("list_image_models", {}).then(function (result) {
-        self.models = normalizeModels(result);
-        if (!self.models.some(function (m) { return m.name === self.selectedModel; })) {
-          self.selectedModel = self.models[0] ? self.models[0].name : "";
-        }
-        self.error = null;
-      }).catch(function (error) {
-        self.error = String(error.message || error);
-      }).then(function () {
-        self.isLoadingModels = false;
-        self.render();
-      });
-    }
-
-    installModel(entry) {
-      var self = this;
-      if (!entry || this.isGenerating) return;
-      this.isGenerating = true;
-      this.notice = "Téléchargement de " + entry.label + " en cours…";
-      this.error = null;
+    pluginUpdated() {
+      this.installStyles();
       this.render();
-      return invoke("install_image_model", { sources: entry.sources }).then(function () {
-        self.notice = entry.label + " a été installé avec succès !";
-        toast(entry.label + " installé", "success");
-        return self.refreshModels();
-      }).catch(function (error) {
-        self.error = String(error.message || error);
-        toast(self.error, "error");
-      }).then(function () {
-        self.isGenerating = false;
-        self.render();
-      });
     }
 
     generate() {
@@ -717,13 +637,8 @@
         this.render();
         return;
       }
-      if (!this.selectedModel && this.models.length === 0) {
-        this.error = "Aucun modèle de diffusion n'est installé. Installez-en un ci-dessous.";
-        this.render();
-        return;
-      }
-      if (this.mode === "img2img" && !this.sourceImage) {
-        this.error = "Veuillez sélectionner une image source pour le mode Image → Image.";
+      if (this.mode !== "txt2img" && !this.sourceImage) {
+        this.error = "Veuillez sélectionner une image source pour cette opération.";
         this.render();
         return;
       }
@@ -735,7 +650,6 @@
 
       var payload = {
         prompt: prompt,
-        model: self.selectedModel || undefined,
         width: self.width,
         height: self.height,
         steps: self.steps,
@@ -767,7 +681,7 @@
           b.chat.appendAssistantMessage(markdown).catch(function () {});
         }
       }).catch(function (error) {
-        self.error = String(error.message || error);
+        self.error = studioError(error);
         toast(self.error, "error");
       }).then(function () {
         self.isGenerating = false;
@@ -782,38 +696,15 @@
       if (promptEl) this.prompt = promptEl.value;
       var negEl = root.querySelector("#ig-negative");
       if (negEl) this.negativePrompt = negEl.value;
-      var modelEl = root.querySelector("#ig-model");
-      if (modelEl && modelEl.value) this.selectedModel = modelEl.value;
     }
 
     render() {
       var self = this;
       if (!this.shadowRoot) return;
 
-      var current = this.selectedModel || (this.models[0] && this.models[0].name) || "";
-      var isInstalled = this.models.length > 0;
-      // Rien d'installé : le catalogue est la seule action utile de
-      // l'écran, il s'ouvre de lui-même.
-      var catalogOpen = this.showCatalog || !isInstalled;
-
-      var optionsHtml = this.models.map(function (m) {
-        var missingText = m.missing && m.missing.length ? " (" + m.missing.length + " compagnon manquant)" : "";
-        return "<option value=\"" + escapeHtml(m.name) + "\"" + (m.name === current ? " selected" : "") + ">" + escapeHtml(m.name) + escapeHtml(missingText) + "</option>";
-      }).join("");
-
       var ratiosHtml = RATIOS.map(function (r) {
         var active = self.width === r.w && self.height === r.h ? " active" : "";
         return "<button type=\"button\" class=\"img-gen-ratio-btn" + active + "\" data-w=\"" + r.w + "\" data-h=\"" + r.h + "\">" + escapeHtml(r.label) + "</button>";
-      }).join("");
-
-      var catalogHtml = CATALOG.map(function (entry) {
-        return "<div class=\"img-gen-catalog-row\">"
-          + "<div class=\"img-gen-catalog-copy\">"
-          + "<strong>" + escapeHtml(entry.label) + "</strong>"
-          + "<span>" + escapeHtml(entry.note) + "</span>"
-          + "</div>"
-          + "<button type=\"button\" class=\"img-gen-install-btn\" data-install-id=\"" + escapeHtml(entry.id) + "\"" + (self.isGenerating ? " disabled" : "") + ">Installer</button>"
-          + "</div>";
       }).join("");
 
       var galleryHtml = this.gallery.map(function (img, idx) {
@@ -823,43 +714,23 @@
           + "</div>";
       }).join("");
 
-      this.shadowRoot.innerHTML = "<style>" + CSS + "</style>"
+      this.shadowRoot.innerHTML = (this.usesStyleElement ? "<style>" + CSS + "</style>" : "")
         + "<div class=\"img-gen-inline\">"
         + "  <div class=\"img-gen-header\">"
         + "    <div class=\"img-gen-title-wrap\">"
         + "      <div class=\"img-gen-icon\">✦</div>"
         + "      <div>"
         + "        <div class=\"img-gen-title\">Génération et retouche d'image</div>"
-        + "        <div class=\"img-gen-subtitle\">Génération locale via le moteur stable-diffusion.cpp · Z-Image, FLUX, SDXL</div>"
+        + "        <div class=\"img-gen-subtitle\">Créez ou transformez une image directement sur votre machine.</div>"
         + "      </div>"
         + "    </div>"
-        + "    <div class=\"img-gen-badge" + (isInstalled ? "" : " empty") + "\">"
-        + "      " + (self.isLoadingModels ? "Recherche…" : isInstalled ? this.models.length + " modèle" + (this.models.length > 1 ? "s" : "") + " disponible" + (this.models.length > 1 ? "s" : "") : "Aucun modèle installé")
-        + "    </div>"
+        + "    <div class=\"img-gen-badge\">Local</div>"
         + "  </div>"
 
         + "  <div class=\"img-gen-tabs\">"
         + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "txt2img" ? " img-gen-tab-active" : "") + "\" data-mode=\"txt2img\">Texte → Image</button>"
         + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "img2img" ? " img-gen-tab-active" : "") + "\" data-mode=\"img2img\">Image → Image</button>"
         + "    <button type=\"button\" class=\"img-gen-tab" + (this.mode === "edit" ? " img-gen-tab-active" : "") + "\" data-mode=\"edit\">Retouche</button>"
-        + "  </div>"
-
-        + "  <div class=\"img-gen-field\">"
-        + "    <div class=\"img-gen-field-row\">"
-        + "      <label class=\"img-gen-label\" for=\"ig-model\">Modèle de diffusion</label>"
-        + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-refresh-models\" style=\"padding:2px 8px;font-size:11px\">Actualiser la liste</button>"
-        + "    </div>"
-        + "    <select class=\"img-gen-select\" id=\"ig-model\"" + (!isInstalled || this.isGenerating ? " disabled" : "") + ">"
-        +        (optionsHtml || "<option value=\"\">Installez un modèle ci-dessous</option>")
-        + "    </select>"
-        + "    <div class=\"img-gen-catalog\">"
-        +      (isInstalled
-                 ? "<button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-toggle-catalog\" style=\"margin-top:8px;padding:4px 10px;font-size:11px\">"
-                   + (catalogOpen ? "Masquer le catalogue" : "Installer un autre modèle")
-                   + "</button>"
-                 : "")
-        +      (catalogOpen ? "<div class=\"img-gen-label\" style=\"margin-top:10px\">Catalogue d'installation rapide :</div>" + catalogHtml : "")
-        + "    </div>"
         + "  </div>"
 
         + "  <div class=\"img-gen-field\">"
@@ -888,28 +759,28 @@
 
         + "  <button type=\"button\" class=\"img-gen-advanced-toggle\" id=\"ig-adv-toggle\">"
         + "    <span>" + (this.showAdvanced ? "▼" : "▶") + " Options avancées</span>"
-        + "    <span style=\"margin-left:auto;color:var(--text-faint)\">" + this.width + "×" + this.height + " · " + this.steps + " étapes · CFG " + this.cfgScale + "</span>"
+        + "    <span class=\"img-gen-advanced-summary\">" + this.width + "×" + this.height + " · " + this.steps + " étapes · CFG " + this.cfgScale + "</span>"
         + "  </button>"
 
         + (this.showAdvanced ? (
           "  <div class=\"img-gen-advanced-panel\">"
-          + "    <div class=\"img-gen-field\" style=\"border:none;padding:0;background:transparent\">"
+          + "    <div class=\"img-gen-field img-gen-field-plain\">"
           + "      <label class=\"img-gen-label\" for=\"ig-negative\">Prompt négatif</label>"
           + "      <input type=\"text\" class=\"img-gen-input\" id=\"ig-negative\" placeholder=\"flou, déformation, basse qualité…\" value=\"" + escapeHtml(this.negativePrompt) + "\"" + (this.isGenerating ? " disabled" : "") + ">"
           + "    </div>"
           + "    <div class=\"img-gen-adv-row\">"
-          + "      <div style=\"display:flex;flex-direction:column;gap:6px\">"
+          + "      <div class=\"img-gen-adv-stack\">"
           + "        <div class=\"img-gen-field-row\"><span class=\"img-gen-label\">Étapes (Steps)</span><span class=\"img-gen-val\">" + this.steps + "</span></div>"
-          + "        <input type=\"range\" min=\"1\" max=\"60\" value=\"" + this.steps + "\" id=\"ig-steps-range\" style=\"accent-color:var(--accent)\"" + (this.isGenerating ? " disabled" : "") + ">"
+          + "        <input type=\"range\" class=\"img-gen-range\" min=\"1\" max=\"60\" value=\"" + this.steps + "\" id=\"ig-steps-range\"" + (this.isGenerating ? " disabled" : "") + ">"
           + "      </div>"
-          + "      <div style=\"display:flex;flex-direction:column;gap:6px\">"
+          + "      <div class=\"img-gen-adv-stack\">"
           + "        <div class=\"img-gen-field-row\"><span class=\"img-gen-label\">Guidance (CFG Scale)</span><span class=\"img-gen-val\">" + this.cfgScale + "</span></div>"
-          + "        <input type=\"range\" min=\"0.5\" max=\"20\" step=\"0.5\" value=\"" + this.cfgScale + "\" id=\"ig-cfg-range\" style=\"accent-color:var(--accent)\"" + (this.isGenerating ? " disabled" : "") + ">"
+          + "        <input type=\"range\" class=\"img-gen-range\" min=\"0.5\" max=\"20\" step=\"0.5\" value=\"" + this.cfgScale + "\" id=\"ig-cfg-range\"" + (this.isGenerating ? " disabled" : "") + ">"
           + "      </div>"
           + "    </div>"
-          + "    <label style=\"display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text-dim)\">"
+          + "    <label class=\"img-gen-check\">"
           + "      <input type=\"checkbox\" id=\"ig-uncensored\"" + (this.uncensored ? " checked" : "") + (this.isGenerating ? " disabled" : "") + ">"
-          + "      <span>Mode sans filtre (utilise l'encodeur abliteré si présent)</span>"
+          + "      <span>Mode sans filtre (si pris en charge)</span>"
           + "    </label>"
           + "  </div>"
         ) : "")
@@ -918,8 +789,8 @@
         + (this.error ? "<div class=\"img-gen-error\">" + escapeHtml(this.error) + "</div>" : "")
 
         + "  <div class=\"img-gen-actions\">"
-        + "    <button type=\"button\" class=\"img-gen-generate-btn\" id=\"ig-generate-btn\"" + (this.isGenerating || !isInstalled ? " disabled" : "") + ">"
-        +        (this.isGenerating ? "Génération en cours…" : (this.mode === "img2img" ? "Transformer l'image" : "Générer l'image"))
+        + "    <button type=\"button\" class=\"img-gen-generate-btn\" id=\"ig-generate-btn\"" + (this.isGenerating ? " disabled" : "") + ">"
+        +        (this.isGenerating ? "Génération en cours…" : (this.mode === "img2img" ? "Transformer l'image" : this.mode === "edit" ? "Retoucher l'image" : "Générer l'image"))
         + "    </button>"
         + "  </div>"
 
@@ -935,9 +806,9 @@
                 + "  </div>"
               ) : this.currentResult ? (
                 "  <div class=\"img-gen-result\">"
-                + "    <div style=\"font-size:14px;font-weight:700;color:var(--accent)\">✓ Image générée</div>"
+                + "    <div class=\"img-gen-result-title\">✓ Image générée</div>"
                 + "    <img class=\"img-gen-result-img\" src=\"" + escapeHtml(this.currentResult.url) + "\" alt=\"Résultat\">"
-                + "    <div style=\"display:flex;gap:8px;margin-top:6px\">"
+                + "    <div class=\"img-gen-result-buttons\">"
                 + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-res-save\">Télécharger</button>"
                 + "      <button type=\"button\" class=\"img-gen-btn-ghost\" id=\"ig-res-copy\">Copier</button>"
                 + "    </div>"
@@ -984,19 +855,6 @@
       var negEl = root.querySelector("#ig-negative");
       if (negEl) {
         negEl.addEventListener("input", function () { self.negativePrompt = negEl.value; });
-      }
-
-      var modelEl = root.querySelector("#ig-model");
-      if (modelEl) {
-        modelEl.addEventListener("change", function () {
-          self.selectedModel = modelEl.value;
-          var found = CATALOG.find(function (c) { return self.selectedModel.toLowerCase().indexOf(c.id) >= 0; });
-          if (found) {
-            self.steps = found.defaultSteps;
-            self.cfgScale = found.defaultCfg;
-          }
-          self.render();
-        });
       }
 
       root.querySelectorAll("[data-mode]").forEach(function (btn) {
@@ -1057,31 +915,6 @@
           self.generate();
         });
       }
-
-      var toggleCatalog = root.querySelector("#ig-toggle-catalog");
-      if (toggleCatalog) {
-        toggleCatalog.addEventListener("click", function () {
-          self.updateState();
-          self.showCatalog = !self.showCatalog;
-          self.render();
-        });
-      }
-
-      var refreshBtn = root.querySelector("#ig-refresh-models");
-      if (refreshBtn) {
-        refreshBtn.addEventListener("click", function () {
-          self.updateState();
-          self.refreshModels();
-        });
-      }
-
-      root.querySelectorAll("[data-install-id]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          var id = btn.getAttribute("data-install-id");
-          var item = CATALOG.find(function (c) { return c.id === id; });
-          if (item) self.installModel(item);
-        });
-      });
 
       var dropzone = root.querySelector("#ig-dropzone");
       var fileInput = root.querySelector("#ig-file");
@@ -1169,7 +1002,19 @@
     }
   }
 
-  if (!customElements.get("locaryn-image-gen-panel")) {
+  var currentElement = customElements.get("locaryn-image-gen-panel");
+  if (currentElement) {
+    // Locaryn can update an extension without restarting. Custom elements
+    // cannot be redefined, so refresh the existing class prototype in place.
+    Object.getOwnPropertyNames(ImageGenPanel.prototype).forEach(function (name) {
+      if (name === "constructor") return;
+      Object.defineProperty(
+        currentElement.prototype,
+        name,
+        Object.getOwnPropertyDescriptor(ImageGenPanel.prototype, name)
+      );
+    });
+  } else {
     customElements.define("locaryn-image-gen-panel", ImageGenPanel);
   }
 })();
