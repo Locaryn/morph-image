@@ -28,6 +28,15 @@ jobs:
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --all-targets --locked
 
+      # Le catalogue et l'interface partent tels quels chez l'utilisateur : un
+      # JSON cassé ou un script qui ne s'analyse pas ne se verrait qu'une fois
+      # l'extension installée.
+      - name: Vérifier les fichiers livrés à l'interface
+        run: |
+          set -euo pipefail
+          node --check dist/ui.js
+          node scripts/check-catalogue.mjs
+
   bundle:
     name: Bundle ${{ matrix.label }}
     needs: check
@@ -83,6 +92,7 @@ jobs:
           test -f bundle/bin/${{ matrix.binary }}
           test -f bundle/plugin.json
           test -f bundle/dist/ui.js
+          test -f bundle/dist/marketplace.json
           test -f bundle/mcp/mcp.json
 
       # Les artefacts ne conservent pas le bit exécutable ; le job de release
@@ -127,6 +137,7 @@ jobs:
           for archive in out/*.zip; do
             unzip -l "$archive" | grep -q "plugin.json"
             unzip -l "$archive" | grep -q "dist/ui.js"
+            unzip -l "$archive" | grep -q "dist/marketplace.json"
             unzip -l "$archive" | grep -q "mcp/mcp.json"
             unzip -l "$archive" | grep -q "bin/locaryn-image-gen-mcp"
           done

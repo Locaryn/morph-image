@@ -15,6 +15,9 @@ Locaryn only provides the generic extension host and starts the plugin's MCP
 server. The plugin bundle contains:
 
 - `dist/ui.js`: the plugin-owned Studio custom element;
+- `dist/marketplace.json`: the image-model catalogue and the « Génération
+  d'image » filter it adds to the application's model catalogue. It declares a
+  `refreshUrl`, so the list keeps updating without reinstalling the extension;
 - `src/bin/locaryn-image-gen-mcp`: the stdio MCP server;
 - `src/lib.rs`: model discovery, downloads, companion validation and the
   stable-diffusion.cpp runtime;
@@ -22,11 +25,19 @@ server. The plugin bundle contains:
 
 No image-generation Tauri command is required in the Locaryn application.
 
+## Models
+
+Models are not offered from the Studio panel. They live in the application's
+model catalogue under the « Génération d'image » filter, contributed by
+`dist/marketplace.json` through the generic `marketplace.catalogs` slot — the
+same place as every other model, installed with the VAE and text encoders each
+family needs. The Studio panel links to it and lists what is installed.
+
 ## Tools
 
 - `list_image_models`: list installed diffusion checkpoints, including files
-  whose names are not in the built-in catalog, while hiding VAE and text
-  encoder companions;
+  whose names are not in the catalogue, while hiding VAE and text encoder
+  companions;
 - `install_image_model`: download a checkpoint and its companions from
   HuggingFace and remove every newly created partial file if the installation
   fails;

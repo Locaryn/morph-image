@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "refreshUrl": "https://raw.githubusercontent.com/Locaryn/plugin-image-gen/main/dist/marketplace.json",
+  "owns": [
+    "z_image",
+    "z-image",
+    "flux1-",
+    "flux-schnell",
+    "flux1.",
+    "sd_xl",
+    "sdxl",
+    "stable-diffusion",
+    "stable_diffusion",
+    "sd-v1",
+    "sd15",
+    "ae.safetensors",
+    "clip_l",
+    "clip-l",
+    "t5xxl",
+    "t5-xxl",
+    "deliberate",
+    "dreamshaper",
+    "juggernaut",
+    "realvis",
+    "illustrious",
+    "pixart",
+    "playground-v",
+    "kolors",
+    "hunyuan-dit"
+  ],
+  "categories": [
+    {
+      "id": "image-generation",
+      "label": "Génération d'image",
+      "icon": "image",
+      "matches": ["image-gen", "image-editor"],
+      "requires": ["image-gen"]
+    }
+  ],
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "brand": "Tongyi",
+      "description": "Rendu photo et illustration en 8 étapes, 1024 px. Le meilleur rapport qualité/temps de l'extension. Livré avec son VAE et son encodeur de texte Qwen3.",
+      "license": "Apache-2.0",
+      "releaseDate": "2025-11-25",
+      "releaseYear": 2025,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_K · 6B",
+          "params": 6,
+          "storageGb": 6.2,
+          "quants": ["q4_K"],
+          "tag": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_K.gguf",
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE"
+            },
+            {
+              "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "label": "Encodeur de texte Qwen3-4B"
+            }
+          ]
+        },
+        {
+          "size": "Q8_0 · 6B",
+          "params": 6,
+          "storageGb": 8.8,
+          "quants": ["q8_0"],
+          "tag": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE"
+            },
+            {
+              "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+              "label": "Encodeur de texte Qwen3-4B"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flux-1-schnell",
+      "name": "FLUX.1 Schnell",
+      "brand": "Black Forest Labs",
+      "description": "Haute fidélité et rendu typographique en 4 étapes. Le plus exigeant en mémoire : prévoir le VAE, l'encodeur CLIP-L et l'encodeur T5-XXL qui l'accompagnent.",
+      "license": "Apache-2.0",
+      "releaseDate": "2024-08-01",
+      "releaseYear": 2024,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0 · 12B",
+          "params": 12,
+          "storageGb": 9.3,
+          "quants": ["q4_0"],
+          "tag": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/flux1-schnell-Q4_0.gguf",
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l.safetensors",
+              "file": "clip_l.safetensors",
+              "label": "Encodeur CLIP-L"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q4_K.gguf",
+              "file": "t5xxl-Q4_K.gguf",
+              "label": "Encodeur T5-XXL"
+            }
+          ]
+        },
+        {
+          "size": "Q8_0 · 12B",
+          "params": 12,
+          "storageGb": 17.2,
+          "quants": ["q8_0"],
+          "tag": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/flux1-schnell-Q8_0.gguf",
+          "downloads": [
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/ae.safetensors",
+              "file": "ae.safetensors",
+              "label": "VAE"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/clip_l.safetensors",
+              "file": "clip_l.safetensors",
+              "label": "Encodeur CLIP-L"
+            },
+            {
+              "url": "https://huggingface.co/second-state/FLUX.1-schnell-GGUF/resolve/main/t5xxl-Q8_0.gguf",
+              "file": "t5xxl-Q8_0.gguf",
+              "label": "Encodeur T5-XXL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sdxl-turbo",
+      "name": "SDXL Turbo",
+      "brand": "Stability AI",
+      "description": "Checkpoint complet 1024 px en quelques étapes, sans fichier compagnon à télécharger. Bon compromis quand la carte graphique est modeste.",
+      "license": "stabilityai-nc-community",
+      "releaseDate": "2023-11-28",
+      "releaseYear": 2023,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q8_0 · 3.5B",
+          "params": 3.5,
+          "storageGb": 3.9,
+          "quants": ["q8_0"],
+          "tag": "https://huggingface.co/OlegSkutte/sdxl-turbo-GGUF/resolve/main/sd_xl_turbo_1.0.q8_0.gguf",
+          "downloads": []
+        }
+      ]
+    },
+    {
+      "id": "stable-diffusion-1-5",
+      "name": "Stable Diffusion 1.5",
+      "brand": "Runway",
+      "description": "Le plus léger du catalogue : 512 px, checkpoint complet, tourne sur processeur ou sur une petite carte graphique. À installer en premier pour vérifier que la chaîne fonctionne.",
+      "license": "creativeml-openrail-m",
+      "releaseDate": "2022-10-20",
+      "releaseYear": 2022,
+      "capabilities": ["image-gen", "image-editor"],
+      "variants": [
+        {
+          "size": "Q4_0 · 0.9B",
+          "params": 0.9,
+          "storageGb": 1.5,
+          "quants": ["q4_0"],
+          "tag": "https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf",
+          "downloads": []
+        },
+        {
+          "size": "Q8_0 · 0.9B",
+          "params": 0.9,
+          "storageGb": 1.7,
+          "quants": ["q8_0"],
+          "tag": "https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF/resolve/main/stable-diffusion-v1-5-pruned-emaonly-Q8_0.gguf",
+          "downloads": []
+        }
+      ]
+    }
+  ]
+}
