@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.4.6";
+const VERSION: &str = "1.4.7";
 
 #[tokio::main]
 async fn main() {
@@ -96,7 +96,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "generate_image",
-                "description": "Génère ou transforme localement une image avec le moteur du plugin. Omettez model pour utiliser le premier checkpoint installé.",
+                "description": "Génère ou transforme localement une image avec le moteur du plugin. Omettez model pour suivre le modèle par défaut choisi dans le compte, ou à défaut le premier checkpoint installé.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["prompt"],

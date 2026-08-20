@@ -14,7 +14,7 @@ Use the plugin MCP tools rather than application commands:
 For `generate_image`, provide:
 
 - `prompt`: detailed visual description;
-- `model` when a specific installed checkpoint is requested; omit it to use the first installed checkpoint;
+- `model` when a specific installed checkpoint is requested; omit it to follow the account's default image model, falling back to the first installed checkpoint;
 - `width` / `height`: a value between 64 and 2048;
 - `steps` and `cfg_scale` when the user asks for custom sampling;
 - `input_image` as a `data:image/...;base64,...` URL for image-to-image editing;
