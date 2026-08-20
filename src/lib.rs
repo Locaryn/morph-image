@@ -205,6 +205,46 @@ pub fn generated_images_dir() -> PathBuf {
         })
 }
 
+/// Les options que le binaire installé accepte réellement.
+///
+/// Les versions de stable-diffusion.cpp ne proposent pas les mêmes drapeaux de
+/// placement mémoire, et passer un drapeau inconnu fait échouer l'appel avant
+/// même le chargement. On lit donc son aide une fois, plutôt que de parier sur
+/// une version.
+fn sd_help_text(binary: &Path) -> &'static str {
+    use std::sync::OnceLock;
+    static HELP: OnceLock<String> = OnceLock::new();
+    HELP.get_or_init(|| {
+        std::process::Command::new(binary)
+            .arg("--help")
+            .output()
+            .map(|out| {
+                let mut text = String::from_utf8_lossy(&out.stdout).to_string();
+                text.push_str(&String::from_utf8_lossy(&out.stderr));
+                text
+            })
+            .unwrap_or_default()
+    })
+}
+
+/// Les drapeaux qui font tenir un modèle plus gros que la VRAM disponible.
+///
+/// Sans eux, le moteur charge tout d'un bloc sur le GPU : un Z-Image réclame
+/// près de 10 Go, et sur une carte de 6 Go l'allocation échoue avec un
+/// « generate failed » qui ne dit rien de la cause. `--auto-fit` répartit les
+/// modules entre les périphériques et la RAM d'après leur taille et la mémoire
+/// libre — c'est la seule réponse qui ne dépende pas de la machine.
+fn memory_fitting_args(binary: &Path) -> Vec<String> {
+    let help = sd_help_text(binary);
+    let mut args = Vec::new();
+    if help.contains("--auto-fit") {
+        args.push("--auto-fit".to_string());
+    } else if help.contains("--offload-to-cpu") {
+        args.push("--offload-to-cpu".to_string());
+    }
+    args
+}
+
 pub fn find_sd_binary() -> Option<PathBuf> {
     let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
     let explicit = std::env::var_os("LOCARYN_SD_BINARY").map(PathBuf::from);
@@ -217,6 +257,19 @@ pub fn find_sd_binary() -> Option<PathBuf> {
     // In LOCARYN_PLUGIN_BIN_DIR
     if let Some(bin_dir) = std::env::var_os("LOCARYN_PLUGIN_BIN_DIR").map(PathBuf::from) {
         candidates.push(bin_dir.join(executable));
+        candidates.push(bin_dir.join("sd").join(executable));
+    }
+
+    // Dans les dossiers de données que l'hôte expose. Un moteur peut y avoir
+    // été posé avant que l'extension existe — le chercher évite de le
+    // retélécharger, et de dire « aucun moteur » avec le binaire sous la main.
+    for key in ["LOCARYN_EXTENSION_DATA_DIR", "LOCARYN_DATA_DIR"] {
+        let Some(dir) = std::env::var_os(key).map(PathBuf::from) else {
+            continue;
+        };
+        candidates.push(dir.join("bin").join("sd").join(executable));
+        candidates.push(dir.join("bin").join(executable));
+        candidates.push(dir.join(executable));
     }
 
     // In candidate model dirs / parent bin dirs
@@ -501,6 +554,9 @@ pub struct SdRequest<'a> {
     pub init_image: Option<&'a Path>,
     pub batch_count: u32,
     pub uncensored: bool,
+    /// Le moteur qui exécutera ces arguments. Les drapeaux disponibles
+    /// dépendent de la version installée, pas de ce que le plugin espère.
+    pub binary: &'a Path,
 }
 
 pub fn batch_output(out_file: &Path, count: u32) -> (PathBuf, Vec<PathBuf>) {
@@ -604,9 +660,15 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
         format!("{:.2}", request.cfg_scale),
         "-s".into(),
         request.seed.to_string(),
-        "--diffusion-fa".into(),
-        "--vae-tiling".into(),
     ]);
+    let help = sd_help_text(request.binary);
+    if help.contains("--diffusion-fa") {
+        args.push("--diffusion-fa".into());
+    }
+    if help.contains("--vae-tiling") {
+        args.push("--vae-tiling".into());
+    }
+    args.extend(memory_fitting_args(request.binary));
     let count = request.batch_count.clamp(1, 8);
     if count > 1 {
         args.extend(["-b".into(), count.to_string()]);
@@ -687,6 +749,10 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         })
         .transpose()?;
     let models = models_dir();
+    let binary = find_sd_binary().ok_or_else(|| {
+        "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
+            .to_string()
+    })?;
     let args = build_args(&SdRequest {
         model_path: &model_path,
         models_dir: &models,
@@ -701,10 +767,7 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         init_image: input_path.as_deref(),
         batch_count: request.variants.clamp(1, 8),
         uncensored: request.uncensored,
-    })?;
-    let binary = find_sd_binary().ok_or_else(|| {
-        "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
-            .to_string()
+        binary: &binary,
     })?;
 
     let mut command = tokio::process::Command::new(binary);
@@ -878,22 +941,74 @@ pub async fn install_models(request: InstallRequest) -> Result<Vec<String>, Stri
     Ok(installed)
 }
 
+/// Poser le contenu d'une archive de runtime dans `bin/`.
+///
+/// Le moteur est publié avec ses bibliothèques à côté de lui ; extraire le seul
+/// exécutable donnerait un binaire qui ne démarre pas. Les chemins sont aplatis
+/// : l'archive place parfois tout dans un dossier, parfois à la racine, et le
+/// moteur veut ses bibliothèques dans son propre dossier.
+fn extract_runtime_archive(archive: &Path, bin_dir: &Path) -> Result<PathBuf, String> {
+    let file = std::fs::File::open(archive).map_err(|e| format!("archive illisible : {e}"))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|e| format!("archive runtime invalide : {e}"))?;
+    let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
+    let mut installed: Option<PathBuf> = None;
+
+    std::fs::create_dir_all(bin_dir).map_err(|e| format!("dossier bin : {e}"))?;
+    for index in 0..zip.len() {
+        let mut entry = zip
+            .by_index(index)
+            .map_err(|e| format!("entrée d'archive illisible : {e}"))?;
+        if entry.is_dir() {
+            continue;
+        }
+        let raw = entry.name().replace('\\', "/");
+        let Some(name) = raw.rsplit('/').next().filter(|name| !name.is_empty()) else {
+            continue;
+        };
+        // Aplatissement : on ne recrée aucun sous-dossier, donc aucun nom ne
+        // peut sortir de `bin_dir`.
+        let target = bin_dir.join(name);
+        let mut out =
+            std::fs::File::create(&target).map_err(|e| format!("écriture {name} : {e}"))?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| format!("extraction {name} : {e}"))?;
+        drop(out);
+        #[cfg(unix)]
+        if let Some(mode) = entry.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode));
+        }
+        if name.eq_ignore_ascii_case(executable) {
+            installed = Some(target);
+        }
+    }
+
+    installed.ok_or_else(|| {
+        format!("l'archive ne contient pas d'exécutable « {executable} » de stable-diffusion.cpp")
+    })
+}
+
 pub async fn install_runtime(request: RuntimeInstallRequest) -> Result<String, String> {
     let source = request.source.trim();
     if !(source.starts_with("https://") && source.contains("github.com/")) {
         return Err("le runtime doit être un asset HTTPS de GitHub".into());
     }
-    if source.to_ascii_lowercase().ends_with(".zip") {
-        return Err(
-            "le runtime doit être un exécutable stable-diffusion.cpp, pas une archive ZIP".into(),
-        );
-    }
-    let file_name = if cfg!(windows) { "sd.exe" } else { "sd" };
-    let destination = plugin_root().join("bin").join(file_name);
+    let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
+    let bin_dir = plugin_root().join("bin");
     let client = reqwest::Client::builder()
         .user_agent("locaryn-plugin-image-gen")
         .build()
         .map_err(|e| format!("client HTTP : {e}"))?;
+
+    if source.to_ascii_lowercase().ends_with(".zip") {
+        let archive = std::env::temp_dir().join("locaryn-sd-runtime.zip");
+        download_file(&client, source, &archive, "").await?;
+        let result = extract_runtime_archive(&archive, &bin_dir);
+        let _ = std::fs::remove_file(&archive);
+        return result.map(|path| path.to_string_lossy().to_string());
+    }
+
+    let destination = bin_dir.join(executable);
     download_file(&client, source, &destination, "").await?;
     Ok(destination.to_string_lossy().to_string())
 }
@@ -1013,6 +1128,55 @@ mod tests {
         assert!(!is_diffusion_checkpoint(
             "L3.2-8X3B-MOE-Dark-Champion-Q3.gguf"
         ));
+    }
+
+    /// L'archive du moteur place parfois tout dans un dossier : l'exécutable
+    /// et ses bibliothèques doivent finir côte à côte dans `bin/`, sinon le
+    /// binaire extrait ne démarre pas.
+    #[test]
+    fn runtime_archive_is_flattened_into_bin() {
+        let root = temp_dir("runtime");
+        let archive = root.join("sd.zip");
+        let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
+        {
+            let file = std::fs::File::create(&archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            zip.add_directory("sd-master-bin/", options).unwrap();
+            zip.start_file(format!("sd-master-bin/{executable}"), options)
+                .unwrap();
+            std::io::Write::write_all(&mut zip, b"moteur").unwrap();
+            zip.start_file("sd-master-bin/ggml.dll", options).unwrap();
+            std::io::Write::write_all(&mut zip, b"lib").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let bin = root.join("bin");
+        let installed = extract_runtime_archive(&archive, &bin).unwrap();
+        assert_eq!(installed, bin.join(executable));
+        assert!(
+            bin.join("ggml.dll").is_file(),
+            "la bibliothèque suit le binaire"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Une archive sans moteur doit le dire, pas laisser croire à une
+    /// installation réussie.
+    #[test]
+    fn runtime_archive_without_engine_is_refused() {
+        let root = temp_dir("runtime-vide");
+        let archive = root.join("vide.zip");
+        {
+            let file = std::fs::File::create(&archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            zip.start_file("LISEZMOI.txt", options).unwrap();
+            std::io::Write::write_all(&mut zip, b"rien ici").unwrap();
+            zip.finish().unwrap();
+        }
+        assert!(extract_runtime_archive(&archive, &root.join("bin")).is_err());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Le réglage du compte ne vaut que si le fichier est encore là : un
