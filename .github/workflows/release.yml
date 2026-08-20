@@ -19,7 +19,7 @@ jobs:
     name: Vérifier la compilation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.88
         with:
           components: rustfmt, clippy
@@ -55,7 +55,7 @@ jobs:
             label: macos-aarch64
             binary: locaryn-image-gen-mcp
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@1.88
         with:
@@ -88,7 +88,7 @@ jobs:
       # Les artefacts ne conservent pas le bit exécutable ; le job de release
       # le repose avant d'archiver, sinon le serveur MCP livré ne démarre pas
       # sous Linux et macOS.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.label }}
           path: bundle
@@ -99,9 +99,9 @@ jobs:
     needs: bundle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           path: dl
           pattern: bundle-*
@@ -131,7 +131,7 @@ jobs:
             unzip -l "$archive" | grep -q "bin/locaryn-image-gen-mcp"
           done
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: plugin-image-gen-archives
           path: out/*.zip
