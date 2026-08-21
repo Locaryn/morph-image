@@ -1,4 +1,4 @@
-/* plugin-image-gen — panneau Studio.
+/* plugin-image — panneau Studio.
  *
  * Rendu dans le document, sans racine fantôme : le panneau hérite du thème et
  * des composants de l'application (`locaryn-card`, `locaryn-btn-*`,
@@ -24,6 +24,27 @@
     { label: "Portrait", detail: "9:16", w: 0.703125, h: 1.25 },
     { label: "Photo", detail: "4:3", w: 1, h: 0.75 },
     { label: "Affiche", detail: "3:4", w: 0.75, h: 1 }
+  ];
+
+  /** Les définitions proposées, en plus de celle du modèle. Rendre au-delà de
+   *  la résolution d'entraînement ne rend pas l'image meilleure — il la
+   *  déforme — mais le choix appartient à qui regarde le résultat. */
+  var SIZES = [
+    { label: "Native", detail: "du modèle", base: 0 },
+    { label: "Brouillon", detail: "512 px", base: 512 },
+    { label: "Standard", detail: "768 px", base: 768 },
+    { label: "Élevée", detail: "1024 px", base: 1024 },
+    { label: "Maximale", detail: "1280 px", base: 1280 }
+  ];
+
+  var SAMPLERS = ["", "euler", "euler_a", "heun", "dpm2", "dpm++2s_a", "dpm++2m", "dpm++2mv2", "lcm"];
+  var SCHEDULERS = ["", "discrete", "karras", "exponential", "ays", "gits"];
+
+  /** Les trois façons de modifier une zone, telles que le moteur les nomme. */
+  var EDIT_MODES = [
+    { id: "preview", label: "Aperçu", hint: "Teinte la zone sans rien modifier." },
+    { id: "recolor", label: "Recolorer", hint: "Change la couleur exactement, sans diffusion." },
+    { id: "replace", label: "Remplacer", hint: "Redessine la zone avec le moteur." }
   ];
 
   /** Un multiple de 64 : les moteurs de diffusion travaillent par blocs. */
@@ -165,12 +186,25 @@
       this.prompt = "";
       this.negativePrompt = "";
       this.base = 1024;
+      this.nativeBase = 1024;
+      this.sizeIndex = 0;
       this.ratio = RATIOS[0];
       this.width = 1024;
       this.height = 1024;
       this.steps = 20;
       this.cfgScale = 7.0;
+      this.seed = "";
+      this.variants = 1;
+      this.strength = 0.75;
+      this.sampler = "";
+      this.scheduler = "";
+      this.clipSkip = "";
       this.sourceImage = null;
+      this.editTarget = "";
+      this.editMode = "preview";
+      this.editColor = "#633e26";
+      this.editPrompt = "";
+      this.editStats = null;
       this.showAdvanced = false;
       this.uncensored = false;
       this.isGenerating = false;
@@ -197,7 +231,14 @@
       var sampling = defaultSampling(name);
       this.steps = sampling.steps;
       this.cfgScale = sampling.cfg;
-      this.base = defaultResolution(name);
+      this.nativeBase = defaultResolution(name);
+      this.applySize();
+    }
+
+    /** Recalcule les dimensions depuis la définition et le format choisis. */
+    applySize() {
+      var chosen = SIZES[this.sizeIndex] || SIZES[0];
+      this.base = chosen.base || this.nativeBase;
       this.width = snap(this.base * this.ratio.w);
       this.height = snap(this.base * this.ratio.h);
     }
@@ -226,6 +267,7 @@
     }
 
     generate() {
+      if (this.mode === "edit") return this.editRegion();
       var self = this;
       var prompt = this.prompt.trim();
       if (!prompt) {
@@ -249,6 +291,8 @@
       this.notice = null;
       this.render();
 
+      var seed = parseInt(this.seed, 10);
+      var clipSkip = parseInt(this.clipSkip, 10);
       return invoke("generate_image", {
         prompt: prompt,
         model: this.selectedModel || undefined,
@@ -258,8 +302,13 @@
         cfg_scale: this.cfgScale,
         negative_prompt: this.negativePrompt.trim() || undefined,
         input_image: this.sourceImage || undefined,
+        strength: this.sourceImage ? this.strength : undefined,
+        seed: isFinite(seed) ? seed : undefined,
+        sampler: this.sampler || undefined,
+        scheduler: this.scheduler || undefined,
+        clip_skip: isFinite(clipSkip) ? clipSkip : undefined,
         uncensored: this.uncensored,
-        variants: 1
+        variants: this.variants
       })
         .then(function (result) {
           var paths = Array.isArray(result.paths) ? result.paths : [];
@@ -287,6 +336,72 @@
         });
     }
 
+    /** Modifier une seule zone, désignée en clair.
+     *
+     *  Un img2img global régénère toute la scène : à faible force rien ne
+     *  bouge, à forte force le décor change aussi. La segmentation par
+     *  description donne le masque qui manque, et l'aperçu permet de vérifier
+     *  la sélection avant de toucher à l'image. */
+    editRegion() {
+      var self = this;
+      if (!this.sourceImage) {
+        this.error = "Choisissez l'image à retoucher.";
+        this.render();
+        return;
+      }
+      var target = this.editTarget.trim();
+      if (!target) {
+        this.error = "Décrivez la zone à modifier (ex. « le t-shirt »).";
+        this.render();
+        return;
+      }
+      if (this.editMode === "replace" && !this.editPrompt.trim()) {
+        this.error = "Décrivez ce qui doit remplacer la zone.";
+        this.render();
+        return;
+      }
+
+      this.isGenerating = true;
+      this.error = null;
+      this.notice = null;
+      this.editStats = null;
+      this.render();
+
+      return invoke("edit_image_region", {
+        image: this.sourceImage,
+        target: target,
+        mode: this.editMode,
+        color: this.editMode === "recolor" ? this.editColor : undefined,
+        prompt: this.editMode === "replace" ? this.editPrompt.trim() : undefined,
+        model: this.selectedModel || undefined,
+        steps: this.steps,
+        cfgScale: this.cfgScale,
+        strength: this.strength
+      })
+        .then(function (result) {
+          if (!result || !result.path) throw new Error("Aucune image retournée.");
+          var image = { path: result.path, url: assetUrl(result.path), prompt: target };
+          self.currentResult = image;
+          self.editStats = {
+            coverage: Number(result.coverage || 0),
+            confidence: Number(result.confidence || 0),
+            pieces: Number(result.pieces || 0)
+          };
+          if (self.editMode !== "preview") {
+            self.gallery = [image].concat(self.gallery).slice(0, 16);
+          }
+          toast(self.editMode === "preview" ? "Sélection affichée" : "Zone modifiée", "success");
+        })
+        .catch(function (error) {
+          self.error = String((error && error.message) || error);
+          toast(self.error, "error");
+        })
+        .then(function () {
+          self.isGenerating = false;
+          self.render();
+        });
+    }
+
     /** Recopier ce que contiennent les champs libres avant un nouveau rendu :
      *  `innerHTML` les recrée, et la saisie en cours serait perdue. */
     captureInputs() {
@@ -296,6 +411,14 @@
       if (negEl) this.negativePrompt = negEl.value;
       var modelEl = this.querySelector("#ig-model");
       if (modelEl && modelEl.value) this.selectedModel = modelEl.value;
+      var seedEl = this.querySelector("#ig-seed");
+      if (seedEl) this.seed = seedEl.value;
+      var skipEl = this.querySelector("#ig-clip-skip");
+      if (skipEl) this.clipSkip = skipEl.value;
+      var targetEl = this.querySelector("#ig-target");
+      if (targetEl) this.editTarget = targetEl.value;
+      var editPromptEl = this.querySelector("#ig-edit-prompt");
+      if (editPromptEl) this.editPrompt = editPromptEl.value;
     }
 
     // ── Rendu ──────────────────────────────────────────────────────────────
@@ -371,9 +494,112 @@
       );
     }
 
+    /** Les définitions offertes, avec ce que chacune donnerait en pixels. */
+    renderSizes() {
+      var self = this;
+      var cells = SIZES.map(function (size, index) {
+        var base = size.base || self.nativeBase;
+        return (
+          '<button type="button" class="locaryn-gen-choice' +
+          (self.sizeIndex === index ? " locaryn-gen-choice-on" : "") +
+          '" data-size="' +
+          index +
+          '">' +
+          escapeHtml(size.label) +
+          "<small>" +
+          escapeHtml(size.base ? size.detail : base + " px") +
+          "</small></button>"
+        );
+      }).join("");
+      return (
+        '<section class="locaryn-gen-block">' +
+        '<div class="locaryn-gen-block-head">' +
+        '<span class="locaryn-gen-label">Définition</span>' +
+        '<span class="locaryn-gen-model-count">' +
+        this.width +
+        "×" +
+        this.height +
+        "</span></div>" +
+        '<div class="locaryn-gen-choices">' +
+        cells +
+        "</div>" +
+        '<p class="locaryn-gen-hint">Au-delà de la définition native du modèle, le calcul ' +
+        "quadruple et l'image se dédouble plus qu'elle ne gagne en détail.</p>" +
+        "</section>"
+      );
+    }
+
+    /** La retouche ciblée : une zone décrite, un mode, rien d'autre. */
+    renderEdit() {
+      var self = this;
+      var busy = this.isGenerating;
+      var modes = EDIT_MODES.map(function (mode) {
+        return (
+          '<button type="button" class="locaryn-gen-choice' +
+          (self.editMode === mode.id ? " locaryn-gen-choice-on" : "") +
+          '" data-edit-mode="' +
+          mode.id +
+          '">' +
+          escapeHtml(mode.label) +
+          "</button>"
+        );
+      }).join("");
+
+      var detail = "";
+      if (this.editMode === "recolor") {
+        detail =
+          '<div class="locaryn-gen-field">' +
+          '<label class="locaryn-gen-label" for="ig-color">Couleur cible</label>' +
+          '<input type="color" id="ig-color" value="' +
+          escapeHtml(this.editColor) +
+          '"' +
+          (busy ? " disabled" : "") +
+          "></div>";
+      } else if (this.editMode === "replace") {
+        detail =
+          '<div class="locaryn-gen-field">' +
+          '<label class="locaryn-gen-label" for="ig-edit-prompt">Ce qui doit apparaître</label>' +
+          '<input type="text" class="locaryn-input" id="ig-edit-prompt" placeholder="a brown leather jacket" value="' +
+          escapeHtml(this.editPrompt) +
+          '"' +
+          (busy ? " disabled" : "") +
+          "></div>";
+      }
+
+      var stats = this.editStats
+        ? '<p class="locaryn-gen-hint">Sélection : ' +
+          this.editStats.coverage.toFixed(1) +
+          " % de l'image, confiance " +
+          Math.round(this.editStats.confidence * 100) +
+          " %, " +
+          this.editStats.pieces +
+          (this.editStats.pieces > 1 ? " morceaux" : " morceau") +
+          ".</p>"
+        : "";
+
+      return (
+        '<section class="locaryn-gen-block">' +
+        '<label class="locaryn-gen-label" for="ig-target">Zone à modifier</label>' +
+        '<input type="text" class="locaryn-input" id="ig-target" placeholder="le t-shirt, l\'étagère en bois…" value="' +
+        escapeHtml(this.editTarget) +
+        '"' +
+        (busy ? " disabled" : "") +
+        ">" +
+        '<p class="locaryn-gen-hint">Visez un seul élément : « le cadre à gauche » plutôt ' +
+        "que « les cadres ». La sélection est refusée si la description est trop vague.</p>" +
+        '<div class="locaryn-gen-choices" style="margin-top:10px">' +
+        modes +
+        "</div>" +
+        detail +
+        stats +
+        "</section>"
+      );
+    }
+
     renderControls() {
       var self = this;
       var busy = this.isGenerating;
+      var isEdit = this.mode === "edit";
 
       var ratios = RATIOS.map(function (ratio, index) {
         var on = self.ratio === ratio ? " locaryn-gen-choice-on" : "";
@@ -394,7 +620,9 @@
         this.mode === "txt2img"
           ? ""
           : '<section class="locaryn-gen-block">' +
-            '<span class="locaryn-gen-label">Image source</span>' +
+            '<span class="locaryn-gen-label">' +
+            (isEdit ? "Image à retoucher" : "Image source") +
+            "</span>" +
             '<div class="locaryn-gen-dropzone' +
             (this.sourceImage ? " locaryn-gen-dropzone-filled" : "") +
             '" id="ig-drop">' +
@@ -437,6 +665,83 @@
           '"' +
           (busy ? " disabled" : "") +
           "></div></div>" +
+          '<div class="locaryn-gen-adv-row">' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<div class="locaryn-gen-field-row"><span class="locaryn-gen-label">Variantes</span>' +
+          '<span class="locaryn-gen-val" id="ig-variants-value">' +
+          this.variants +
+          "</span></div>" +
+          '<input type="range" id="ig-variants" min="1" max="8" value="' +
+          this.variants +
+          '"' +
+          (busy ? " disabled" : "") +
+          ">" +
+          '<p class="locaryn-gen-hint">Rendues en une seule passe : les poids et le ' +
+          "prompt ne sont chargés qu'une fois.</p></div>" +
+          '<div class="locaryn-gen-adv-item">' +
+          '<div class="locaryn-gen-field-row"><span class="locaryn-gen-label">Force</span>' +
+          '<span class="locaryn-gen-val" id="ig-strength-value">' +
+          this.strength.toFixed(2) +
+          "</span></div>" +
+          '<input type="range" id="ig-strength" min="0.05" max="1" step="0.05" value="' +
+          this.strength +
+          '"' +
+          (busy || !this.sourceImage ? " disabled" : "") +
+          ">" +
+          '<p class="locaryn-gen-hint">Part de l\'image source réécrite. Sans image ' +
+          "source, ce réglage ne s'applique pas.</p></div></div>" +
+          '<div class="locaryn-gen-adv-row">' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<label class="locaryn-gen-label" for="ig-sampler">Échantillonneur</label>' +
+          '<select class="locaryn-select" id="ig-sampler"' +
+          (busy ? " disabled" : "") +
+          ">" +
+          SAMPLERS.map(function (name) {
+            return (
+              '<option value="' +
+              escapeHtml(name) +
+              '"' +
+              (self.sampler === name ? " selected" : "") +
+              ">" +
+              escapeHtml(name || "Automatique") +
+              "</option>"
+            );
+          }).join("") +
+          "</select></div>" +
+          '<div class="locaryn-gen-adv-item">' +
+          '<label class="locaryn-gen-label" for="ig-scheduler">Planificateur</label>' +
+          '<select class="locaryn-select" id="ig-scheduler"' +
+          (busy ? " disabled" : "") +
+          ">" +
+          SCHEDULERS.map(function (name) {
+            return (
+              '<option value="' +
+              escapeHtml(name) +
+              '"' +
+              (self.scheduler === name ? " selected" : "") +
+              ">" +
+              escapeHtml(name || "Automatique") +
+              "</option>"
+            );
+          }).join("") +
+          "</select></div></div>" +
+          '<div class="locaryn-gen-adv-row">' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<label class="locaryn-gen-label" for="ig-seed">Graine</label>' +
+          '<input type="number" class="locaryn-input" id="ig-seed" placeholder="aléatoire" value="' +
+          escapeHtml(this.seed) +
+          '"' +
+          (busy ? " disabled" : "") +
+          ">" +
+          '<p class="locaryn-gen-hint">Fixée, elle rejoue exactement le même rendu.</p></div>' +
+          '<div class="locaryn-gen-adv-item">' +
+          '<label class="locaryn-gen-label" for="ig-clip-skip">Saut CLIP</label>' +
+          '<input type="number" class="locaryn-input" id="ig-clip-skip" min="1" max="12" placeholder="automatique" value="' +
+          escapeHtml(this.clipSkip) +
+          '"' +
+          (busy ? " disabled" : "") +
+          ">" +
+          '<p class="locaryn-gen-hint">2 sur beaucoup de dérivés SD 1.5.</p></div></div>' +
           '<label class="locaryn-gen-hint" style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
           '<input type="checkbox" id="ig-uncensored"' +
           (this.uncensored ? " checked" : "") +
@@ -459,19 +764,25 @@
         '" data-mode="edit">Retouche</button>' +
         "</div>" +
         this.renderModelBlock() +
-        '<section class="locaryn-gen-block">' +
-        '<label class="locaryn-gen-label" for="ig-prompt">Description</label>' +
-        '<textarea class="locaryn-textarea locaryn-gen-textarea" id="ig-prompt" rows="5" placeholder="Décrivez l\'image à produire…"' +
-        (busy ? " disabled" : "") +
-        ">" +
-        escapeHtml(this.prompt) +
-        "</textarea></section>" +
+        (isEdit
+          ? ""
+          : '<section class="locaryn-gen-block">' +
+            '<label class="locaryn-gen-label" for="ig-prompt">Description</label>' +
+            '<textarea class="locaryn-textarea locaryn-gen-textarea" id="ig-prompt" rows="5" placeholder="Décrivez l\'image à produire…"' +
+            (busy ? " disabled" : "") +
+            ">" +
+            escapeHtml(this.prompt) +
+            "</textarea></section>") +
         source +
-        '<section class="locaryn-gen-block">' +
-        '<span class="locaryn-gen-label">Format</span>' +
-        '<div class="locaryn-gen-choices">' +
-        ratios +
-        "</div></section>" +
+        (isEdit ? this.renderEdit() : "") +
+        (isEdit
+          ? ""
+          : '<section class="locaryn-gen-block">' +
+            '<span class="locaryn-gen-label">Format</span>' +
+            '<div class="locaryn-gen-choices">' +
+            ratios +
+            "</div></section>" +
+            this.renderSizes()) +
         '<button type="button" class="locaryn-gen-advanced-toggle' +
         (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
         '" id="ig-adv"><span>Options avancées</span>' +
@@ -491,13 +802,17 @@
         '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn' +
         (busy ? " locaryn-gen-generate-btn-busy" : "") +
         '" id="ig-generate"' +
-        (busy || this.models.length === 0 ? " disabled" : "") +
+        (busy || (this.models.length === 0 && !isEdit) ? " disabled" : "") +
         ">" +
         (busy
-          ? "Génération en cours…"
-          : this.mode === "txt2img"
-            ? "Générer l'image"
-            : "Transformer l'image") +
+          ? "Traitement en cours…"
+          : isEdit
+            ? this.editMode === "preview"
+              ? "Voir la sélection"
+              : "Modifier la zone"
+            : this.mode === "txt2img"
+              ? "Générer l'image"
+              : "Transformer l'image") +
         "</button>" +
         "</div>"
       );
@@ -639,8 +954,18 @@
       onAll("[data-ratio]", "click", function (element) {
         self.captureInputs();
         self.ratio = RATIOS[Number(element.getAttribute("data-ratio"))] || RATIOS[0];
-        self.width = snap(self.base * self.ratio.w);
-        self.height = snap(self.base * self.ratio.h);
+        self.applySize();
+        self.render();
+      });
+      onAll("[data-size]", "click", function (element) {
+        self.captureInputs();
+        self.sizeIndex = Number(element.getAttribute("data-size")) || 0;
+        self.applySize();
+        self.render();
+      });
+      onAll("[data-edit-mode]", "click", function (element) {
+        self.captureInputs();
+        self.editMode = element.getAttribute("data-edit-mode") || "preview";
         self.render();
       });
 
@@ -658,6 +983,37 @@
         self.cfgScale = Number(event.target.value);
         var label = self.querySelector("#ig-cfg-value");
         if (label) label.textContent = String(self.cfgScale);
+      });
+      on("#ig-variants", "input", function (event) {
+        self.variants = Number(event.target.value);
+        var label = self.querySelector("#ig-variants-value");
+        if (label) label.textContent = String(self.variants);
+      });
+      on("#ig-strength", "input", function (event) {
+        self.strength = Number(event.target.value);
+        var label = self.querySelector("#ig-strength-value");
+        if (label) label.textContent = self.strength.toFixed(2);
+      });
+      on("#ig-sampler", "change", function (event) {
+        self.sampler = event.target.value;
+      });
+      on("#ig-scheduler", "change", function (event) {
+        self.scheduler = event.target.value;
+      });
+      on("#ig-seed", "input", function (event) {
+        self.seed = event.target.value;
+      });
+      on("#ig-clip-skip", "input", function (event) {
+        self.clipSkip = event.target.value;
+      });
+      on("#ig-target", "input", function (event) {
+        self.editTarget = event.target.value;
+      });
+      on("#ig-edit-prompt", "input", function (event) {
+        self.editPrompt = event.target.value;
+      });
+      on("#ig-color", "input", function (event) {
+        self.editColor = event.target.value;
       });
       on("#ig-uncensored", "change", function (event) {
         self.uncensored = event.target.checked;
@@ -733,7 +1089,7 @@
     }
   }
 
-  if (!customElements.get("locaryn-image-gen-panel")) {
-    customElements.define("locaryn-image-gen-panel", ImageGenPanel);
+  if (!customElements.get("locaryn-image-panel")) {
+    customElements.define("locaryn-image-panel", ImageGenPanel);
   }
 })();

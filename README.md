@@ -1,4 +1,4 @@
-# Locaryn Plugin: Image Generation (`plugin-image-gen`)
+# Locaryn Plugin: Image (`plugin-image`)
 
 Official Locaryn extension for local image generation and editing. The extension
 owns the complete feature: model discovery, model variants, VAE/text-encoder
@@ -21,9 +21,16 @@ server. The plugin bundle contains:
 - `dist/marketplace.json`: the image-model catalogue and the « Génération
   d'image » filter it adds to the application's model catalogue. It declares a
   `refreshUrl`, so the list keeps updating without reinstalling the extension;
-- `src/bin/locaryn-image-gen-mcp`: the stdio MCP server;
+- `src/bin/locaryn-image-mcp`: the stdio MCP server;
 - `src/lib.rs`: model discovery, downloads, companion validation and the
-  stable-diffusion.cpp runtime;
+  stable-diffusion.cpp runtime, including where each part of the weights is
+  placed. Nothing is offloaded while the weights fit the card — offloading a
+  1.5 GiB checkpoint on a 6 GiB card turned a one-minute render into three;
+- `src/region_edit.rs`: masked region editing. CLIPSeg turns a plain
+  description (« the t-shirt ») into a mask, recolouring rewrites LAB chroma
+  without any diffusion model, and replacement crops to the region, runs the
+  engine with `--mask` and composites back through the mask at full
+  resolution;
 - `mcp/mcp.json`: the plugin-owned server declaration.
 
 No image-generation Tauri command is required in the Locaryn application.
@@ -52,7 +59,7 @@ VAE decoder is rejected, preventing the `get sd version from file failed` error.
 ## Installation
 
 ```bash
-locaryn plugin install Locaryn/plugin-image-gen
+locaryn plugin install Locaryn/plugin-image
 ```
 
 The release bundle includes a platform-specific MCP executable. The extension

@@ -4,6 +4,8 @@
 //! bridge. Model files, the diffusion executable, output media and all image
 //! generation decisions live here.
 
+pub mod region_edit;
+
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -35,6 +37,27 @@ pub struct ImageGenRequest {
     pub cfg_scale: Option<f32>,
     #[serde(default)]
     pub input_image: Option<String>,
+    /// Masque de retouche : blanc = repeindre, noir = garder. Exige
+    /// `input_image`. Chemin disque ou data URL, comme l'image source.
+    #[serde(default)]
+    pub mask_image: Option<String>,
+    /// Part de l'image source réécrite en img2img, 0 à 1.
+    #[serde(default)]
+    pub strength: Option<f32>,
+    /// Absente : une graine tirée de l'horloge, donc une image différente à
+    /// chaque appel. Fixer la graine rejoue exactement le même rendu.
+    #[serde(default)]
+    pub seed: Option<i64>,
+    /// `euler`, `euler_a`, `dpm++2m`… selon ce que le moteur installé accepte.
+    #[serde(default)]
+    pub sampler: Option<String>,
+    /// `discrete`, `karras`, `exponential`, `ays`…
+    #[serde(default)]
+    pub scheduler: Option<String>,
+    /// Couches de CLIP ignorées à la fin de l'encodage. 2 sur les modèles
+    /// entraînés ainsi (beaucoup de dérivés SD 1.5).
+    #[serde(default)]
+    pub clip_skip: Option<i32>,
     #[serde(default)]
     pub uncensored: bool,
     #[serde(default = "default_variants")]
@@ -117,6 +140,18 @@ pub fn default_sampling(file_name: &str) -> (u32, f32) {
         ModelFamily::Flux => (if turbo { 4 } else { 20 }, 1.0),
         ModelFamily::FullCheckpoint => (if turbo { 6 } else { 20 }, 7.0),
     }
+}
+
+/// Où poser les fichiers intermédiaires d'un rendu.
+///
+/// L'hôte range son scratch hors du disque système quand celui-ci est saturé,
+/// et le publie ; sinon le temporaire de la machine fait l'affaire.
+pub fn scratch_dir() -> PathBuf {
+    let dir = std::env::var_os("LOCARYN_TEMP_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let _ = std::fs::create_dir_all(&dir);
+    dir
 }
 
 /// The host injects this path when it launches the plugin MCP server.
@@ -236,8 +271,10 @@ fn sd_help_text(binary: &Path) -> &'static str {
     use std::sync::OnceLock;
     static HELP: OnceLock<String> = OnceLock::new();
     HELP.get_or_init(|| {
-        std::process::Command::new(binary)
-            .arg("--help")
+        let mut command = std::process::Command::new(binary);
+        command.arg("--help");
+        hide_std_console(&mut command);
+        command
             .output()
             .map(|out| {
                 let mut text = String::from_utf8_lossy(&out.stdout).to_string();
@@ -248,20 +285,103 @@ fn sd_help_text(binary: &Path) -> &'static str {
     })
 }
 
-/// Les drapeaux qui font tenir un modèle plus gros que la VRAM disponible.
+/// La VRAM utilisable, en Gio.
 ///
-/// Sans eux, le moteur charge tout d'un bloc sur le GPU : un Z-Image réclame
-/// près de 10 Go, et sur une carte de 6 Go l'allocation échoue avec un
-/// « generate failed » qui ne dit rien de la cause. `--auto-fit` répartit les
-/// modules entre les périphériques et la RAM d'après leur taille et la mémoire
-/// libre — c'est la seule réponse qui ne dépende pas de la machine.
-fn memory_fitting_args(binary: &Path) -> Vec<String> {
-    let help = sd_help_text(binary);
-    let mut args = Vec::new();
+/// L'hôte connaît la carte et publie le chiffre ; à défaut on interroge
+/// `nvidia-smi`. Sans ce chiffre, impossible de savoir si les poids tiennent,
+/// et c'est toute la différence entre un rendu d'une minute et un de trois.
+pub fn vram_budget_gb() -> Option<f32> {
+    if let Some(raw) = std::env::var_os("LOCARYN_VRAM_GB") {
+        if let Ok(value) = raw.to_string_lossy().trim().parse::<f32>() {
+            if value > 0.0 {
+                return Some(value);
+            }
+        }
+    }
+    probed_vram_gb()
+}
+
+/// Ce que la machine sait dire d'elle-même, relevé une seule fois.
+fn probed_vram_gb() -> Option<f32> {
+    use std::sync::OnceLock;
+    static PROBE: OnceLock<Option<f32>> = OnceLock::new();
+    *PROBE.get_or_init(|| {
+        let mut command = std::process::Command::new("nvidia-smi");
+        command.args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"]);
+        hide_std_console(&mut command);
+        let output = command.output().ok()?;
+        let text = String::from_utf8_lossy(&output.stdout);
+        // Plusieurs cartes : la plus grande, c'est celle qui décide.
+        text.lines()
+            .filter_map(|line| line.trim().parse::<f32>().ok())
+            .filter(|mib| *mib > 0.0)
+            .fold(None, |best: Option<f32>, mib| {
+                Some(best.map_or(mib, |b| b.max(mib)))
+            })
+            .map(|mib| mib / 1024.0)
+    })
+}
+
+/// Le poids du modèle sur le disque, en Gio.
+///
+/// Un dépôt au format diffusers est un dossier : additionner ses fichiers,
+/// sinon `metadata` renvoie la taille de l'entrée de répertoire et tout
+/// paraît tenir sur n'importe quelle carte.
+fn weights_gb(model_path: &Path) -> f32 {
+    const GIB: f32 = 1024.0 * 1024.0 * 1024.0;
+    if model_path.is_dir() {
+        let total: u64 = walkdir::WalkDir::new(model_path)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+            .filter_map(|entry| entry.metadata().ok())
+            .map(|meta| meta.len())
+            .sum();
+        return total as f32 / GIB;
+    }
+    std::fs::metadata(model_path)
+        .map(|meta| meta.len() as f32 / GIB)
+        .unwrap_or(0.0)
+}
+
+/// Où placer les poids, d'après ce que la carte peut réellement tenir.
+///
+/// Déporter systématiquement était la cause d'une lenteur qui n'avait aucune
+/// raison d'être : un Stable Diffusion 1.5 quantifié pèse 1,5 Gio et tenait
+/// largement sur les 6 Gio de la carte, mais `--auto-fit` envoyait quand même
+/// la diffusion en RAM — une minute de rendu devenait trois. Tant que les
+/// poids tiennent, aucun drapeau : le moteur garde tout sur le GPU. Ce n'est
+/// que lorsqu'ils débordent qu'il faut répartir, et là `--auto-fit` est ce qui
+/// aboutit sur cette classe de machine (mesuré sur Z-Image, 9,9 Gio contre
+/// 6 Gio de VRAM). Les moteurs qui ne le connaissent pas retombent sur le
+/// trio du socle : déport, plafond de VRAM, encodeur de texte sur processeur —
+/// le VAE, lui, reste sur le GPU, son décodage dominait le rendu sinon.
+fn memory_placement_args(model_path: &Path, help: &str) -> Vec<String> {
+    let weights = weights_gb(model_path);
+    let vram = vram_budget_gb();
+    let fits = match vram {
+        Some(budget) if budget > 0.0 && weights > 0.0 => weights < budget * 0.85,
+        _ => false,
+    };
+    if fits {
+        return Vec::new();
+    }
     if help.contains("--auto-fit") {
-        args.push("--auto-fit".to_string());
-    } else if help.contains("--offload-to-cpu") {
+        return vec!["--auto-fit".to_string()];
+    }
+    let mut args = Vec::new();
+    if help.contains("--offload-to-cpu") {
         args.push("--offload-to-cpu".to_string());
+    }
+    if let Some(budget) = vram.filter(|value| *value > 0.0) {
+        if help.contains("--max-vram") {
+            args.push("--max-vram".to_string());
+            args.push(format!("{:.1}", (budget * 0.55).max(1.5)));
+        }
+    }
+    if help.contains("--backend") {
+        args.push("--backend".to_string());
+        args.push("te=cpu".to_string());
     }
     args
 }
@@ -592,6 +712,13 @@ pub struct SdRequest<'a> {
     pub seed: i64,
     pub out_file: &'a Path,
     pub init_image: Option<&'a Path>,
+    /// Blanc = repeindre, noir = garder. Exige `init_image`.
+    pub mask: Option<&'a Path>,
+    /// Part de l'image source réécrite, 0 à 1. Ignorée sans `init_image`.
+    pub strength: f32,
+    pub sampler: Option<&'a str>,
+    pub scheduler: Option<&'a str>,
+    pub clip_skip: Option<i32>,
     pub batch_count: u32,
     pub uncensored: bool,
     /// Le moteur qui exécutera ces arguments. Les drapeaux disponibles
@@ -701,8 +828,11 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
             "-i".into(),
             input.to_string_lossy().to_string(),
             "--strength".into(),
-            "0.75".into(),
+            format!("{:.2}", request.strength.clamp(0.0, 1.0)),
         ]);
+        if let Some(mask) = request.mask {
+            args.extend(["--mask".into(), mask.to_string_lossy().to_string()]);
+        }
     }
     args.extend([
         "-W".into(),
@@ -717,13 +847,28 @@ pub fn build_args(request: &SdRequest<'_>) -> Result<Vec<String>, String> {
         request.seed.to_string(),
     ]);
     let help = sd_help_text(request.binary);
+    if let Some(sampler) = request.sampler.filter(|value| !value.is_empty()) {
+        if help.contains("--sampling-method") {
+            args.extend(["--sampling-method".into(), sampler.to_string()]);
+        }
+    }
+    if let Some(scheduler) = request.scheduler.filter(|value| !value.is_empty()) {
+        if help.contains("--schedule") {
+            args.extend(["--schedule".into(), scheduler.to_string()]);
+        }
+    }
+    if let Some(skip) = request.clip_skip.filter(|value| *value > 0) {
+        if help.contains("--clip-skip") {
+            args.extend(["--clip-skip".into(), skip.to_string()]);
+        }
+    }
     if help.contains("--diffusion-fa") {
         args.push("--diffusion-fa".into());
     }
     if help.contains("--vae-tiling") {
         args.push("--vae-tiling".into());
     }
-    args.extend(memory_fitting_args(request.binary));
+    args.extend(memory_placement_args(request.model_path, help));
     let count = request.batch_count.clamp(1, 8);
     if count > 1 {
         args.extend(["-b".into(), count.to_string()]);
@@ -800,16 +945,11 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         .unwrap_or_default()
         .as_millis();
     let out_file = output_dir.join(format!("img_{stamp}.png"));
-    let input_path = request
-        .input_image
-        .as_deref()
-        .map(|data| {
-            let path = std::env::temp_dir().join(format!("locaryn-image-input-{stamp}.png"));
-            std::fs::write(&path, decode_data_url(data)?)
-                .map_err(|e| format!("image source : {e}"))?;
-            Ok::<PathBuf, String>(path)
-        })
-        .transpose()?;
+    let input_path = materialise_image(request.input_image.as_deref(), &format!("input-{stamp}"))?;
+    let mask_path = materialise_image(request.mask_image.as_deref(), &format!("mask-{stamp}"))?;
+    if mask_path.is_some() && input_path.is_none() {
+        return Err("un masque de retouche demande aussi une image source".into());
+    }
     let models = models_dir();
     let binary = find_sd_binary().ok_or_else(|| {
         "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
@@ -824,9 +964,14 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         height,
         steps,
         cfg_scale: cfg,
-        seed: stamp as i64,
+        seed: request.seed.unwrap_or(stamp as i64),
         out_file: &out_file,
         init_image: input_path.as_deref(),
+        mask: mask_path.as_deref(),
+        strength: request.strength.unwrap_or(0.75).clamp(0.0, 1.0),
+        sampler: request.sampler.as_deref(),
+        scheduler: request.scheduler.as_deref(),
+        clip_skip: request.clip_skip,
         batch_count: request.variants.clamp(1, 8),
         uncensored: request.uncensored,
         binary: &binary,
@@ -872,8 +1017,8 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         Ok(paths)
     }
     .await;
-    if let Some(path) = &input_path {
-        let _ = std::fs::remove_file(path);
+    for scratch in [&input_path, &mask_path].into_iter().flatten() {
+        let _ = std::fs::remove_file(scratch);
     }
     if result.is_err() {
         let (_, expected) = batch_output(&out_file, request.variants.clamp(1, 8));
@@ -885,6 +1030,37 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         paths: result?,
         model: selected,
     })
+}
+
+/// Ramène une image à un fichier, qu'elle arrive en data URL ou en chemin.
+///
+/// L'interface d'une extension vit dans une vue web : elle n'a pas de chemin
+/// disque à donner, seulement le contenu encodé. Un appel d'outil venu du
+/// modèle, lui, nomme un fichier existant. Les deux doivent marcher.
+pub fn materialise_image(source: Option<&str>, tag: &str) -> Result<Option<PathBuf>, String> {
+    let Some(raw) = source.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if !raw.starts_with("data:") {
+        let path = PathBuf::from(raw);
+        if !path.is_file() {
+            return Err(format!("image introuvable : {raw}"));
+        }
+        return Ok(Some(path));
+    }
+    let path = std::env::temp_dir().join(format!("locaryn-image-{tag}.png"));
+    std::fs::write(&path, decode_data_url(raw)?).map_err(|e| format!("image source : {e}"))?;
+    Ok(Some(path))
+}
+
+fn hide_std_console(command: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    #[cfg(not(windows))]
+    let _ = command;
 }
 
 fn hide_console(command: &mut tokio::process::Command) {
@@ -973,7 +1149,7 @@ pub async fn install_models(request: InstallRequest) -> Result<Vec<String>, Stri
         .or_else(|| std::env::var("HF_TOKEN").ok())
         .unwrap_or_default();
     let client = reqwest::Client::builder()
-        .user_agent("locaryn-plugin-image-gen")
+        .user_agent("locaryn-plugin-image")
         .build()
         .map_err(|e| format!("client HTTP : {e}"))?;
     let mut installed = Vec::new();
@@ -1058,7 +1234,7 @@ pub async fn install_runtime(request: RuntimeInstallRequest) -> Result<String, S
     let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
     let bin_dir = plugin_root().join("bin");
     let client = reqwest::Client::builder()
-        .user_agent("locaryn-plugin-image-gen")
+        .user_agent("locaryn-plugin-image")
         .build()
         .map_err(|e| format!("client HTTP : {e}"))?;
 
@@ -1158,6 +1334,39 @@ async fn download_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ce que coûtait le placement systématique : un SD 1.5 quantifié tient
+    /// largement sur une carte de 6 Gio, et l'envoyer quand même en RAM
+    /// faisait passer le rendu d'une minute à trois.
+    #[test]
+    fn weights_that_fit_the_card_stay_on_it() {
+        let dir = std::env::temp_dir().join("locaryn_image_fit_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let small = dir.join("sd15.gguf");
+        std::fs::write(&small, vec![0u8; 4 * 1024 * 1024]).unwrap();
+        std::env::set_var("LOCARYN_VRAM_GB", "6");
+        assert!(memory_placement_args(&small, "--auto-fit --offload-to-cpu").is_empty());
+
+        // Au-delà de ce que la carte tient, il faut au contraire répartir.
+        std::env::set_var("LOCARYN_VRAM_GB", "0.001");
+        assert_eq!(
+            memory_placement_args(&small, "--auto-fit --offload-to-cpu"),
+            vec!["--auto-fit".to_string()]
+        );
+        // Un moteur qui ignore --auto-fit retombe sur le trio du socle.
+        assert_eq!(
+            memory_placement_args(&small, "--offload-to-cpu --max-vram --backend"),
+            vec![
+                "--offload-to-cpu".to_string(),
+                "--max-vram".to_string(),
+                "1.5".to_string(),
+                "--backend".to_string(),
+                "te=cpu".to_string(),
+            ]
+        );
+        std::env::remove_var("LOCARYN_VRAM_GB");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn model_families_and_sampling_are_stable() {

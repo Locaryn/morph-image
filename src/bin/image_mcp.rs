@@ -1,15 +1,16 @@
-//! Stdio MCP server shipped by plugin-image-gen.
+//! Stdio MCP server shipped by plugin-image.
 //! stdout is reserved for JSON-RPC; diagnostics stay out of the protocol.
 
-use locaryn_plugin_image_gen::{
-    generate_image, install_models, install_runtime, list_image_models, ImageGenRequest,
-    InstallRequest, RuntimeInstallRequest,
+use locaryn_plugin_image::region_edit::{edit_region, RegionEditArgs};
+use locaryn_plugin_image::{
+    generate_image, generated_images_dir, install_models, install_runtime, list_image_models,
+    ImageGenRequest, InstallRequest, RuntimeInstallRequest,
 };
 use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.6.0";
+const VERSION: &str = "2.0.0";
 
 #[tokio::main]
 async fn main() {
@@ -41,7 +42,7 @@ async fn handle_request(request: Value) -> Value {
             json!({
                 "protocolVersion": "2025-06-18",
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "plugin-image-gen", "version": VERSION }
+                "serverInfo": { "name": "plugin-image", "version": VERSION }
             }),
         ),
         "tools/list" => success(id, tools_list()),
@@ -108,9 +109,34 @@ fn tools_list() -> Value {
                         "height": { "type": "integer", "minimum": 64, "maximum": 2048, "description": "À laisser vide sauf format demandé." },
                         "steps": { "type": "integer", "minimum": 1, "maximum": 100, "description": "À laisser vide sauf demande explicite : une valeur trop haute allonge le calcul sans rien apporter." },
                         "cfg_scale": { "type": "number", "minimum": 0.1, "maximum": 30, "description": "À laisser vide sauf demande explicite." },
-                        "input_image": { "type": "string", "description": "URL data:image/...;base64,... pour transformer une image existante." },
+                        "input_image": { "type": "string", "description": "Chemin de fichier ou URL data:image/...;base64,... pour transformer une image existante." },
+                        "mask_image": { "type": "string", "description": "Masque de retouche, blanc = repeindre, noir = garder. Exige input_image. Pour désigner une zone en mots plutôt qu'en pixels, utilisez edit_image_region." },
+                        "strength": { "type": "number", "minimum": 0, "maximum": 1, "description": "Part de l'image source réécrite, 0,75 par défaut. Bas = retouche légère, haut = réinvention." },
+                        "seed": { "type": "integer", "description": "Rejoue exactement le même rendu. À omettre pour une image différente à chaque appel." },
+                        "sampler": { "type": "string", "description": "euler, euler_a, dpm++2m… À omettre en temps normal." },
+                        "scheduler": { "type": "string", "description": "discrete, karras, exponential, ays… À omettre en temps normal." },
+                        "clip_skip": { "type": "integer", "minimum": 1, "maximum": 12, "description": "Couches CLIP ignorées ; 2 sur beaucoup de dérivés SD 1.5. À omettre en temps normal." },
                         "uncensored": { "type": "boolean" },
-                        "variants": { "type": "integer", "minimum": 1, "maximum": 8 }
+                        "variants": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Plusieurs images en un seul rendu : le chargement des poids et l'encodage du prompt ne sont payés qu'une fois." }
+                    }
+                }
+            },
+            {
+                "name": "edit_image_region",
+                "description": "Modifie une zone nommée d'une image en laissant le reste intact. La zone est désignée en clair (« le t-shirt », « l'étagère en bois ») et segmentée par CLIPSeg — aucune coordonnée à fournir. Trois modes : recolor change la couleur exactement, sans modèle de diffusion et en une fraction de seconde ; replace redessine la zone avec le moteur ; preview teinte la sélection pour la faire valider avant de modifier quoi que ce soit. Préférez cet outil à generate_image dès que la demande porte sur une partie d'une image existante : un img2img global régénère toute la scène.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["image", "target", "mode"],
+                    "properties": {
+                        "image": { "type": "string", "description": "Chemin de l'image à modifier, ou URL data:image/...;base64,..." },
+                        "target": { "type": "string", "description": "La zone, en mots. Visez un seul élément : « le cadre à gauche » plutôt que « les cadres »." },
+                        "mode": { "type": "string", "enum": ["recolor", "replace", "preview"], "description": "recolor exige color ; replace exige prompt ; preview ne modifie rien." },
+                        "color": { "type": "string", "description": "Couleur cible en #RRGGBB, pour recolor." },
+                        "prompt": { "type": "string", "description": "Ce qu'il faut dessiner à la place, en anglais, pour replace." },
+                        "model": { "type": "string", "description": "Checkpoint pour replace. À omettre pour suivre le modèle par défaut du compte." },
+                        "steps": { "type": "integer", "minimum": 1, "maximum": 100 },
+                        "cfgScale": { "type": "number", "minimum": 0.1, "maximum": 30 },
+                        "strength": { "type": "number", "minimum": 0, "maximum": 1, "description": "0,85 par défaut pour un remplacement." }
                     }
                 }
             }
@@ -144,6 +170,23 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
                     "path": path.to_string_lossy()
                 }))
                 .collect::<Vec<_>>());
+            Ok(value)
+        }
+        "edit_image_region" => {
+            // Le dossier de sortie appartient au plugin : l'appelant n'a pas à
+            // le connaître, et une extension n'écrit pas où on le lui dit.
+            let mut args = args;
+            if let Some(object) = args.as_object_mut() {
+                object.insert(
+                    "outputDir".to_string(),
+                    json!(generated_images_dir().to_string_lossy()),
+                );
+            }
+            let request: RegionEditArgs = serde_json::from_value(args)
+                .map_err(|error| format!("paramètres de retouche invalides : {error}"))?;
+            let result = edit_region(request).await?;
+            let mut value = serde_json::to_value(&result).map_err(|error| error.to_string())?;
+            value["artifacts"] = json!([{ "kind": "image_png", "path": result.path }]);
             Ok(value)
         }
         _ => Err(format!("outil image inconnu : {name}")),

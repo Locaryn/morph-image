@@ -1,13 +1,13 @@
 {
   "$schema": "https://locaryn.dev/schema/plugin.json/v0.1",
   "apiVersion": "0.1",
-  "name": "plugin-image-gen",
-  "version": "1.6.0",
-  "description": "Extension autonome de génération et modification d'images avec son moteur stable-diffusion.cpp, ses modèles et son interface.",
+  "name": "plugin-image",
+  "version": "2.0.0",
+  "description": "Extension autonome d'image : génération, img2img et retouche ciblée par masque, avec son moteur stable-diffusion.cpp, ses modèles et son interface.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/Locaryn/plugin-image-gen",
-  "repository": "https://github.com/Locaryn/plugin-image-gen",
+  "homepage": "https://github.com/Locaryn/plugin-image",
+  "repository": "https://github.com/Locaryn/plugin-image",
   "keywords": ["image-generation", "image-editing", "stable-diffusion", "flux", "z-image", "text-to-image"],
   "permissions": {
     "mcp": {
@@ -31,7 +31,7 @@
   "ui_contributions": {
     "slots": [
       {
-        "id": "image-gen-catalog",
+        "id": "image-catalog",
         "slot": "marketplace.catalogs",
         "order": 10,
         "type": "data",
@@ -41,15 +41,15 @@
         "hint": "Ajoute le filtre « Génération d'image » et ses modèles au catalogue"
       },
       {
-        "id": "image-gen-studio",
+        "id": "image-studio",
         "slot": "studio.tabs",
         "order": 10,
         "label": "Génération d'image",
         "icon": "image",
         "type": "custom-element",
         "entry": "dist/ui.js",
-        "tag": "locaryn-image-gen-panel",
-        "hint": "Génération et retouche locales dans l'extension image-gen"
+        "tag": "locaryn-image-panel",
+        "hint": "Génération et retouche locales dans l'extension image"
       }
     ],
     "nav_items": [

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "refreshUrl": "https://raw.githubusercontent.com/Locaryn/plugin-image-gen/main/dist/marketplace.json",
+  "refreshUrl": "https://raw.githubusercontent.com/Locaryn/plugin-image/main/dist/marketplace.json",
   "owns": [
     "z_image",
     "z-image",

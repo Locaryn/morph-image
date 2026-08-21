@@ -48,21 +48,21 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             label: linux-x86_64
-            binary: locaryn-image-gen-mcp
+            binary: locaryn-image-mcp
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             label: windows-x86_64
-            binary: locaryn-image-gen-mcp.exe
+            binary: locaryn-image-mcp.exe
           # Compilé croisé depuis Apple Silicon : les runners macos-13 sont
           # retirés et un job qui les demande reste en file d'attente.
           - os: macos-14
             target: x86_64-apple-darwin
             label: macos-x86_64
-            binary: locaryn-image-gen-mcp
+            binary: locaryn-image-mcp
           - os: macos-14
             target: aarch64-apple-darwin
             label: macos-aarch64
-            binary: locaryn-image-gen-mcp
+            binary: locaryn-image-mcp
     steps:
       - uses: actions/checkout@v7
 
@@ -75,7 +75,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Compiler le serveur MCP
-        run: cargo build --release --locked --target ${{ matrix.target }} --bin locaryn-image-gen-mcp
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin locaryn-image-mcp
 
       # Le paquet ne contient que ce qui tourne chez l'utilisateur : le
       # manifeste, la compétence, l'interface, la configuration MCP et le
@@ -126,7 +126,7 @@ jobs:
           for dir in dl/bundle-*; do
             label="${dir#dl/bundle-}"
             chmod +x "$dir"/bin/* || true
-            ( cd "$dir" && zip -r -q "$GITHUB_WORKSPACE/out/plugin-image-gen-v${VERSION}-${label}.zip" . )
+            ( cd "$dir" && zip -r -q "$GITHUB_WORKSPACE/out/plugin-image-v${VERSION}-${label}.zip" . )
           done
           ls -l out
 
@@ -139,12 +139,12 @@ jobs:
             unzip -l "$archive" | grep -q "dist/ui.js"
             unzip -l "$archive" | grep -q "dist/marketplace.json"
             unzip -l "$archive" | grep -q "mcp/mcp.json"
-            unzip -l "$archive" | grep -q "bin/locaryn-image-gen-mcp"
+            unzip -l "$archive" | grep -q "bin/locaryn-image-mcp"
           done
 
       - uses: actions/upload-artifact@v7
         with:
-          name: plugin-image-gen-archives
+          name: plugin-image-archives
           path: out/*.zip
           if-no-files-found: error
 
@@ -152,7 +152,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           draft: false
-          name: "plugin-image-gen ${{ github.ref_name }}"
+          name: "plugin-image ${{ github.ref_name }}"
           files: out/*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
