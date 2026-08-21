@@ -45,8 +45,20 @@
 
   var CANVAS_STYLE = "display:flex;flex-direction:column;gap:14px;min-width:0";
 
+  /** Où ce panneau tourne : `desktop`, `mobile` ou `web`.
+   *
+   *  La place disponible se lit déjà dans la grille — un ordinateur en fenêtre
+   *  réduite mérite la même mise en page qu'une tablette, et `auto-fit` s'en
+   *  charge. La surface ne sert donc qu'à ce que la largeur n'apprend pas :
+   *  sur un téléphone, une variante à la fois et une définition modeste, parce
+   *  que c'est un appareil qui chauffe et dont la batterie compte. */
+  function surface() {
+    var b = bridge();
+    return (b && b.surface) || "desktop";
+  }
+
   /** La version du paquet, affichée dans le panneau. */
-  var PANEL_VERSION = "2.0.4";
+  var PANEL_VERSION = "2.0.5";
 
   /** Les éléments qui perdent à être coupés en deux. Ceux des versions
    *  précédentes sont visés aussi : ce script sert à les rattraper. */
@@ -298,7 +310,9 @@
       this.negativePrompt = "";
       this.base = 1024;
       this.nativeBase = 1024;
-      this.sizeIndex = 0;
+      // Sur un téléphone, la définition la plus basse par défaut : le rendu
+      // s'y fait sur le processeur, et 1024 px y prend des dizaines de minutes.
+      this.sizeIndex = surface() === "mobile" ? 1 : 0;
       this.ratio = RATIOS[0];
       this.width = 1024;
       this.height = 1024;
