@@ -15,50 +15,65 @@
     return window.locaryn || window.LocarynPluginAPI || null;
   }
 
-  /** La mise en page du panneau, portée par ses propres nœuds.
+  /** La mise en page du panneau, décidée sur des pixels mesurés.
    *
-   *  Le reste de son style vient de l'application — couleurs, cartes, boutons
-   *  suivent ainsi le thème sans être recopiés. Mais la disposition de ses
-   *  blocs le regarde, et une règle injectée ne suffisait pas : l'application
-   *  possède déjà `.locaryn-gen-split`, héritée du temps où la génération
-   *  d'images était une fonction du socle, et c'est elle qui décidait —
-   *  1280 px de large, une colonne de réglages de 380 px, six blocs empilés
-   *  et deux bandes vides sur les côtés. Un style porté par l'élément lui-même
-   *  ne se discute pas, quel que soit l'ordre des feuilles.
+   *  Trois tentatives ont échoué avant celle-ci, pour la même raison : la
+   *  déclaration était écrite avec `repeat(auto-fit, minmax(min(…), 1fr))`.
+   *  Un moteur qui n'accepte pas cette forme jette la déclaration entière et
+   *  retombe sur la feuille de l'application, qui possède déjà
+   *  `.locaryn-gen-split` — d'où une colonne de réglages large de 380 px,
+   *  exactement la valeur du socle, sur un écran où deux tenaient largement.
+   *  Le reste du style inline s'appliquait pourtant : seule la piste tombait.
    *
-   *  Deux niveaux, tous deux en `auto-fit` : la page se coupe en deux quand
-   *  elle dépasse 880 px, et la colonne des réglages range ses blocs par deux
-   *  dès qu'elle atteint 480 px. Aucune taille d'écran n'est devinée à
-   *  l'avance ; chaque grille décide d'après la place qu'elle a réellement. */
-  var SPLIT_STYLE =
-    "display:grid;align-items:start;gap:24px;width:100%;max-width:1680px;" +
-    "margin:0 auto;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));";
+   *  Plus aucune fonction CSS ici, donc, ni pourcentage dans une piste
+   *  `auto-fit` : on mesure la largeur réelle et on écrit `1fr` ou `1fr 1fr`,
+   *  que tous les moteurs comprennent. Les valeurs sont posées propriété par
+   *  propriété — jamais par `setAttribute("style", …)` — pour que rien ne
+   *  dépende de la façon dont l'hôte filtre les attributs. */
+  /** Deux blocs par ligne demandent 500 px de colonne. La page ne se coupe
+   *  donc en deux qu'à partir du double, plus l'écart : couper plus tôt
+   *  rétrécissait la colonne sous ce seuil et renvoyait les blocs en file —
+   *  l'écran devenait plus large et la mise en page moins bonne. */
+  var CONTROLS_AT = 500;
+  var SPLIT_GAP = 24;
+  var SPLIT_AT = CONTROLS_AT * 2 + SPLIT_GAP;
+  var ONE = "minmax(0,1fr)";
+  var TWO = "minmax(0,1fr) minmax(0,1fr)";
 
-  /* `max(240px,45%)` borne le nombre de pistes à deux : au-delà, 45 % trois
-     fois dépasse la largeur disponible. En dessous de 480 px, le plancher de
-     240 px reprend la main et la colonne redevient unique. */
-  var CONTROLS_STYLE =
-    "display:grid;align-content:start;gap:14px;min-width:0;" +
-    "grid-template-columns:repeat(auto-fit,minmax(min(100%,max(240px,45%)),1fr));";
+  /** Écrire une propriété seulement si elle change : l'observateur qui appelle
+   *  cette fonction réagit à toute mutation. */
+  function put(element, property, value) {
+    if (element.style[property] !== value) element.style[property] = value;
+  }
 
-  var WIDE_STYLE = "grid-column:1/-1;";
+  function styleSplit(split, twoColumns) {
+    put(split, "display", "grid");
+    put(split, "alignItems", "start");
+    put(split, "gap", SPLIT_GAP + "px");
+    put(split, "width", "100%");
+    put(split, "maxWidth", "1680px");
+    put(split, "marginLeft", "auto");
+    put(split, "marginRight", "auto");
+    put(split, "gridTemplateColumns", twoColumns ? TWO : ONE);
+  }
 
-  var CANVAS_STYLE = "display:flex;flex-direction:column;gap:14px;min-width:0";
+  function styleControls(controls, twoColumns) {
+    put(controls, "display", "grid");
+    put(controls, "alignContent", "start");
+    put(controls, "gap", "14px");
+    put(controls, "minWidth", "0");
+    put(controls, "gridTemplateColumns", twoColumns ? TWO : ONE);
+  }
 
-  /** Où ce panneau tourne : `desktop`, `mobile` ou `web`.
-   *
-   *  La place disponible se lit déjà dans la grille — un ordinateur en fenêtre
-   *  réduite mérite la même mise en page qu'une tablette, et `auto-fit` s'en
-   *  charge. La surface ne sert donc qu'à ce que la largeur n'apprend pas :
-   *  sur un téléphone, une variante à la fois et une définition modeste, parce
-   *  que c'est un appareil qui chauffe et dont la batterie compte. */
-  function surface() {
-    var b = bridge();
-    return (b && b.surface) || "desktop";
+  function styleCanvas(canvas) {
+    put(canvas, "display", "flex");
+    put(canvas, "flexDirection", "column");
+    put(canvas, "gap", "14px");
+    put(canvas, "minWidth", "0");
   }
 
   /** La version du paquet, affichée dans le panneau. */
-  var PANEL_VERSION = "2.0.5";
+  var PANEL_VERSION = "2.1.0";
 
   /** Les éléments qui perdent à être coupés en deux. Ceux des versions
    *  précédentes sont visés aussi : ce script sert à les rattraper. */
@@ -71,72 +86,123 @@
     ".locaryn-gen-generate-btn"
   ].join(",");
 
-  /** Poser la disposition sur ce qui est déjà à l'écran.
+  /** Poser la disposition sur ce qui est à l'écran.
    *
-   *  Un élément personnalisé ne se redéfinit pas : quand l'hôte a déjà
-   *  enregistré une version précédente de ce panneau, c'est elle qui rend, et
-   *  rien de ce qui est écrit ici n'atteint la page — on met le paquet à jour
-   *  et l'interface ne bouge pas. Ce script-ci s'exécute quand même. Il
-   *  corrige donc ce que l'autre a produit, au lieu d'attendre un
-   *  redémarrage que rien n'annonce.
+   *  Deux mesures, dans cet ordre : la place dont dispose le panneau décide
+   *  s'il se coupe en réglages et résultat ; la largeur que la colonne des
+   *  réglages obtient ensuite décide si ses blocs se rangent par deux. La
+   *  seconde dépend de la première, d'où la lecture entre les deux.
    *
-   *  Idempotent : quand c'est bien cette version qui rend, il réécrit à
-   *  l'identique ce qu'elle a déjà posé. */
+   *  Ce rattrapage sert aussi quand l'hôte a déjà enregistré une version
+   *  antérieure du panneau : un élément personnalisé ne se redéfinit pas,
+   *  c'est l'ancienne classe qui rend, et seul ce passage lui donne la bonne
+   *  disposition. */
   function stampLayout() {
     var panels = document.querySelectorAll("locaryn-image-panel,locaryn-image-gen-panel");
     for (var i = 0; i < panels.length; i += 1) {
       var panel = panels[i];
       var split = panel.querySelector(".locaryn-gen-split");
       if (!split) continue;
-      if (split.getAttribute("style") !== SPLIT_STYLE) split.setAttribute("style", SPLIT_STYLE);
-      var columns = split.children;
-      if (columns[0] && columns[0].getAttribute("style") !== CONTROLS_STYLE) {
-        columns[0].setAttribute("style", CONTROLS_STYLE);
-      }
-      // Comparer avant d'écrire : l'observateur qui appelle cette fonction
-      // réagit à toute mutation, et une écriture inconditionnelle se
-      // rappellerait elle-même sans fin.
-      if (columns[1] && columns[1].getAttribute("style") !== CANVAS_STYLE) {
-        columns[1].setAttribute("style", CANVAS_STYLE);
-      }
+      var controls = split.children[0];
+      var canvas = split.children[1];
+      if (!controls) continue;
+
+      // Un élément personnalisé est `inline` par défaut : son `clientWidth`
+      // vaut zéro. On mesure donc le rectangle, et on remonte tant qu'il est
+      // vide plutôt que de prendre une largeur fausse pour une largeur nulle.
+      var available = usableWidth(split);
+      styleSplit(split, available >= SPLIT_AT);
+      styleControls(controls, controls.getBoundingClientRect().width >= CONTROLS_AT);
+      if (canvas) styleCanvas(canvas);
+      observeSize(split);
+      observeSize(controls);
+
       // La version qui a réellement posé cette disposition. Sans elle, une
       // capture d'écran ne dit pas quel code rend, et on cherche un défaut de
       // mise en page là où il n'y a qu'un paquet resté en arrière.
-      var tabs = columns[0] ? columns[0].querySelector(".locaryn-gen-tabs") : null;
+      var tabs = controls.querySelector(".locaryn-gen-tabs");
       if (tabs) {
-        tabs.style.alignItems = "center";
+        put(tabs, "alignItems", "center");
         var badge = tabs.querySelector("[data-locaryn-image-version]");
         if (!badge) {
           badge = document.createElement("span");
           badge.className = "locaryn-gen-hint";
           badge.setAttribute("data-locaryn-image-version", "");
-          badge.style.marginLeft = "auto";
-          badge.style.whiteSpace = "nowrap";
           badge.title = "Version du paquet plugin-image qui rend ce panneau";
           tabs.appendChild(badge);
         }
+        put(badge, "marginLeft", "auto");
+        put(badge, "whiteSpace", "nowrap");
         if (badge.textContent !== "v" + PANEL_VERSION) badge.textContent = "v" + PANEL_VERSION;
       }
-      var wide = columns[0] ? columns[0].querySelectorAll(WIDE_SELECTOR) : [];
+
+      var wide = controls.querySelectorAll(WIDE_SELECTOR);
       for (var j = 0; j < wide.length; j += 1) {
-        if (wide[j].parentElement !== columns[0]) continue;
-        if (wide[j].style.gridColumn !== "1 / -1") wide[j].style.gridColumn = "1/-1";
+        if (wide[j].parentNode !== controls) continue;
+        put(wide[j], "gridColumn", "1 / -1");
       }
     }
   }
 
-  /** Le panneau se réécrit entièrement à chaque rendu : observer le document
-   *  est le seul moyen de reprendre la main après coup. */
-  function watchLayout() {
-    stampLayout();
-    if (window.__locarynImageLayoutWatcher) return;
-    var observer = new MutationObserver(function () {
-      stampLayout();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    window.__locarynImageLayoutWatcher = observer;
+  /** La largeur réellement disponible, en remontant tant qu'elle est nulle. */
+  function usableWidth(element) {
+    var node = element;
+    while (node && node.getBoundingClientRect) {
+      var width = node.getBoundingClientRect().width;
+      if (width > 0) return width;
+      node = node.parentNode;
+    }
+    return 0;
   }
 
+  var watched = typeof WeakSet === "function" ? new WeakSet() : null;
+
+  /** Suivre la taille d'un conteneur, une seule fois par conteneur.
+   *
+   *  Observer `document.body` ne suffisait pas : replier le menu latéral ou
+   *  ouvrir un panneau change la place du Studio sans toucher à celle de la
+   *  page, et la disposition restait figée sur la mesure précédente. */
+  function observeSize(element) {
+    if (!window.__locarynImageSizeWatcher || !watched || watched.has(element)) return;
+    watched.add(element);
+    window.__locarynImageSizeWatcher.observe(element);
+  }
+
+  /** Le panneau se réécrit entièrement à chaque rendu, et la place dont il
+   *  dispose change sans le prévenir : il faut suivre les deux. */
+  function watchLayout() {
+    if (!window.__locarynImageLayoutWatcher) {
+      var pending = false;
+      var replant = function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () {
+          pending = false;
+          stampLayout();
+        });
+      };
+      if (typeof ResizeObserver === "function") {
+        window.__locarynImageSizeWatcher = new ResizeObserver(replant);
+      }
+      var mutations = new MutationObserver(replant);
+      mutations.observe(document.body, { childList: true, subtree: true });
+      window.addEventListener("resize", replant);
+      window.__locarynImageLayoutWatcher = mutations;
+    }
+    stampLayout();
+  }
+
+  /** Où ce panneau tourne : `desktop`, `mobile` ou `web`.
+   *
+   *  La place disponible est déjà mesurée plus haut — un ordinateur en fenêtre
+   *  réduite mérite la même mise en page qu'une tablette. La surface ne sert
+   *  donc qu'à ce que la largeur n'apprend pas : sur un téléphone, une
+   *  définition modeste, parce que c'est un appareil qui chauffe et dont la
+   *  batterie compte. */
+  function surface() {
+    var b = bridge();
+    return (b && b.surface) || "desktop";
+  }
 
   /** Les proportions, en multiples de la résolution native du modèle : rendre
    *  un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le calcul
@@ -761,9 +827,7 @@
             "</section>";
 
       var advanced = this.showAdvanced
-        ? '<section class="locaryn-gen-advanced-panel" style="' +
-          WIDE_STYLE +
-          '">' +
+        ? '<section class="locaryn-gen-advanced-panel">' +
           '<div class="locaryn-gen-field">' +
           '<label class="locaryn-gen-label" for="ig-negative">Prompt négatif</label>' +
           '<input type="text" class="locaryn-input" id="ig-negative" placeholder="flou, déformation, basse qualité…" value="' +
@@ -878,12 +942,8 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col locaryn-gen-controls" style="' +
-        CONTROLS_STYLE +
-        '">' +
-        '<div class="locaryn-gen-tabs" style="' +
-        WIDE_STYLE +
-        'align-items:center">' +
+        '<div class="locaryn-gen-col locaryn-gen-controls">' +
+        '<div class="locaryn-gen-tabs">' +
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
@@ -914,9 +974,7 @@
             ratios +
             "</div></section>" +
             this.renderSizes()) +
-        '<button type="button" style="' +
-        WIDE_STYLE +
-        '" class="locaryn-gen-advanced-toggle' +
+        '<button type="button" class="locaryn-gen-advanced-toggle' +
         (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
         '" id="ig-adv"><span>Options avancées</span>' +
         '<span class="locaryn-gen-advanced-summary">' +
@@ -930,15 +988,9 @@
         "</span></button>" +
         advanced +
         (this.error
-          ? '<p class="locaryn-gen-error" style="' +
-            WIDE_STYLE +
-            '">' +
-            escapeHtml(this.error) +
-            "</p>"
+          ? '<p class="locaryn-gen-error">' + escapeHtml(this.error) + "</p>"
           : "") +
-        '<button type="button" style="' +
-        WIDE_STYLE +
-        '" class="locaryn-btn-primary locaryn-gen-generate-btn' +
+        '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn' +
         (busy ? " locaryn-gen-generate-btn-busy" : "") +
         '" id="ig-generate"' +
         (busy || (this.models.length === 0 && !isEdit) ? " disabled" : "") +
@@ -1018,9 +1070,7 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col" style="' +
-        CANVAS_STYLE +
-        '">' +
+        '<div class="locaryn-gen-col">' +
         '<section class="locaryn-gen-block locaryn-gen-canvas">' +
         body +
         "</section>" +
@@ -1044,15 +1094,14 @@
         : "";
 
       this.innerHTML =
-        '<div class="locaryn-gen-split" style="' +
-        SPLIT_STYLE +
-        '">' +
+        '<div class="locaryn-gen-split">' +
         this.renderControls() +
         this.renderCanvas() +
         "</div>" +
         lightbox;
 
       this.bindEvents();
+      stampLayout();
     }
 
     bindEvents() {
