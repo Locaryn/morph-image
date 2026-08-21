@@ -15,6 +15,44 @@
     return window.locaryn || window.LocarynPluginAPI || null;
   }
 
+  /** La mise en page du panneau, apportée par le panneau.
+   *
+   *  Le reste de son style vient de l'application — couleurs, cartes, boutons
+   *  suivent ainsi le thème sans être recopiés. Mais la disposition de ses
+   *  propres blocs le regarde, et une colonne unique de six blocs empilés
+   *  laissait les bords de l'écran vides tout en obligeant à faire défiler.
+   *  Les blocs se rangent donc par deux dès qu'il y a la place, et retombent
+   *  en colonne quand il n'y en a plus : c'est `auto-fit` qui décide, pas une
+   *  liste de tailles d'écran devinées à l'avance. */
+  var PANEL_STYLE = [
+    "locaryn-image-panel .locaryn-gen-split{",
+    "  max-width:1680px;",
+    "  grid-template-columns:minmax(320px,0.9fr) minmax(0,1fr);",
+    "}",
+    "locaryn-image-panel .locaryn-gen-controls{",
+    "  display:grid;",
+    "  grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));",
+    "  align-content:start;",
+    "  gap:14px;",
+    "}",
+    // Ce qui perd à être coupé en deux : les onglets, les réglages
+    // avancés, le message d'erreur et le bouton qui lance le rendu.
+    "locaryn-image-panel .locaryn-gen-wide{grid-column:1/-1;}",
+    "locaryn-image-panel .locaryn-gen-controls .locaryn-gen-textarea{min-height:132px;}",
+    "@media (max-width:980px){",
+    "  locaryn-image-panel .locaryn-gen-split{grid-template-columns:minmax(0,1fr);}",
+    "}"
+  ].join("");
+
+  /** Posée une fois pour toutes : le panneau est recréé à chaque rendu. */
+  function ensureStyle() {
+    if (document.getElementById("locaryn-image-panel-style")) return;
+    var style = document.createElement("style");
+    style.id = "locaryn-image-panel-style";
+    style.textContent = PANEL_STYLE;
+    document.head.appendChild(style);
+  }
+
   /** Les proportions, en multiples de la résolution native du modèle : rendre
    *  un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le calcul
    *  pour une image moins bonne. */
@@ -217,6 +255,7 @@
     }
 
     connectedCallback() {
+      ensureStyle();
       this.render();
       this.refreshModels();
     }
@@ -636,7 +675,7 @@
             "</section>";
 
       var advanced = this.showAdvanced
-        ? '<section class="locaryn-gen-advanced-panel">' +
+        ? '<section class="locaryn-gen-advanced-panel locaryn-gen-wide">' +
           '<div class="locaryn-gen-field">' +
           '<label class="locaryn-gen-label" for="ig-negative">Prompt négatif</label>' +
           '<input type="text" class="locaryn-input" id="ig-negative" placeholder="flou, déformation, basse qualité…" value="' +
@@ -751,8 +790,8 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col">' +
-        '<div class="locaryn-gen-tabs">' +
+        '<div class="locaryn-gen-col locaryn-gen-controls">' +
+        '<div class="locaryn-gen-tabs locaryn-gen-wide">' +
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
@@ -783,7 +822,7 @@
             ratios +
             "</div></section>" +
             this.renderSizes()) +
-        '<button type="button" class="locaryn-gen-advanced-toggle' +
+        '<button type="button" class="locaryn-gen-advanced-toggle locaryn-gen-wide' +
         (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
         '" id="ig-adv"><span>Options avancées</span>' +
         '<span class="locaryn-gen-advanced-summary">' +
@@ -797,9 +836,11 @@
         "</span></button>" +
         advanced +
         (this.error
-          ? '<p class="locaryn-gen-error">' + escapeHtml(this.error) + "</p>"
+          ? '<p class="locaryn-gen-error locaryn-gen-wide">' +
+            escapeHtml(this.error) +
+            "</p>"
           : "") +
-        '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn' +
+        '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn locaryn-gen-wide' +
         (busy ? " locaryn-gen-generate-btn-busy" : "") +
         '" id="ig-generate"' +
         (busy || (this.models.length === 0 && !isEdit) ? " disabled" : "") +
