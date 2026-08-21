@@ -386,19 +386,43 @@ fn memory_placement_args(model_path: &Path, help: &str) -> Vec<String> {
     args
 }
 
+/// Les noms sous lesquels le moteur se présente.
+///
+/// stable-diffusion.cpp a renommé son exécutable : les publications récentes
+/// livrent `sd-cli`, plus aucun `sd`. Chercher le seul ancien nom faisait
+/// répondre « moteur introuvable » avec le moteur dans le dossier d'à côté.
+/// Les deux sont acceptés, le nom actuel d'abord.
+fn sd_executable_names() -> [&'static str; 2] {
+    if cfg!(windows) {
+        ["sd-cli.exe", "sd.exe"]
+    } else {
+        ["sd-cli", "sd"]
+    }
+}
+
 pub fn find_sd_binary() -> Option<PathBuf> {
-    let executable = if cfg!(windows) { "sd.exe" } else { "sd" };
+    let noms = sd_executable_names();
     let explicit = std::env::var_os("LOCARYN_SD_BINARY").map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = explicit.into_iter().collect();
 
+    // Chaque emplacement est essayé sous les deux noms avant de passer au
+    // suivant : un moteur livré avec l'extension prime sur un vieux binaire
+    // traînant ailleurs sur la machine.
+    let ajouter = |dossier: PathBuf, candidates: &mut Vec<PathBuf>| {
+        for nom in noms {
+            candidates.push(dossier.join(nom));
+        }
+    };
+
     // In plugin bin/ and plugin root
-    candidates.push(plugin_root().join("bin").join(executable));
-    candidates.push(plugin_root().join(executable));
+    ajouter(plugin_root().join("bin").join("sd"), &mut candidates);
+    ajouter(plugin_root().join("bin"), &mut candidates);
+    ajouter(plugin_root(), &mut candidates);
 
     // In LOCARYN_PLUGIN_BIN_DIR
     if let Some(bin_dir) = std::env::var_os("LOCARYN_PLUGIN_BIN_DIR").map(PathBuf::from) {
-        candidates.push(bin_dir.join(executable));
-        candidates.push(bin_dir.join("sd").join(executable));
+        ajouter(bin_dir.join("sd"), &mut candidates);
+        ajouter(bin_dir, &mut candidates);
     }
 
     // Dans les dossiers de données que l'hôte expose. Un moteur peut y avoir
@@ -408,25 +432,25 @@ pub fn find_sd_binary() -> Option<PathBuf> {
         let Some(dir) = std::env::var_os(key).map(PathBuf::from) else {
             continue;
         };
-        candidates.push(dir.join("bin").join("sd").join(executable));
-        candidates.push(dir.join("bin").join(executable));
-        candidates.push(dir.join(executable));
+        ajouter(dir.join("bin").join("sd"), &mut candidates);
+        ajouter(dir.join("bin"), &mut candidates);
+        ajouter(dir, &mut candidates);
     }
 
     // In candidate model dirs / parent bin dirs
     for dir in candidate_model_dirs() {
-        candidates.push(dir.join("bin").join(executable));
-        candidates.push(dir.join(executable));
+        ajouter(dir.join("bin"), &mut candidates);
+        ajouter(dir.clone(), &mut candidates);
         if let Some(parent) = dir.parent() {
-            candidates.push(parent.join("bin").join(executable));
-            candidates.push(parent.join(executable));
+            ajouter(parent.join("bin"), &mut candidates);
+            ajouter(parent.to_path_buf(), &mut candidates);
         }
     }
 
     // In PATH
     if let Some(path_var) = std::env::var_os("PATH") {
         for path_entry in std::env::split_paths(&path_var) {
-            candidates.push(path_entry.join(executable));
+            ajouter(path_entry, &mut candidates);
         }
     }
 

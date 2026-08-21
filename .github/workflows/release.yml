@@ -49,28 +49,23 @@ jobs:
             target: x86_64-unknown-linux-gnu
             label: linux-x86_64
             binary: locaryn-image-mcp
-            engine_match: ubuntu|linux
-            engine_exclude: musl|arm|aarch
+            engine_match: bin-Linux-.*x86_64-vulkan
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             label: windows-x86_64
             binary: locaryn-image-mcp.exe
-            engine_match: win.*(vulkan|avx2)
-            engine_exclude: cuda|rocm|arm64|hip
+            engine_match: bin-win-vulkan-x64
           # Compilé croisé depuis Apple Silicon : les runners macos-13 sont
           # retirés et un job qui les demande reste en file d'attente.
           - os: macos-14
             target: x86_64-apple-darwin
             label: macos-x86_64
             binary: locaryn-image-mcp
-            engine_match: mac.*(x64|x86_64|intel)
-            engine_exclude: arm64|aarch64
           - os: macos-14
             target: aarch64-apple-darwin
             label: macos-aarch64
             binary: locaryn-image-mcp
-            engine_match: mac.*(arm64|aarch64)
-            engine_exclude: x64|x86_64
+            engine_match: bin-Darwin-.*arm64
     steps:
       - uses: actions/checkout@v7
 
@@ -97,21 +92,17 @@ jobs:
       # à l'autre, et un nom figé se périme sans prévenir.
       - name: Récupérer le moteur de diffusion
         shell: bash
+        if: matrix.engine_match != ''
         env:
           GH_TOKEN: ${{ github.token }}
           ATTENDU: ${{ matrix.engine_match }}
-          EXCLU: ${{ matrix.engine_exclude }}
         run: |
           set -euo pipefail
           mkdir -p engine
           gh release view --repo leejet/stable-diffusion.cpp \
             --json tagName,assets --jq '.tagName, (.assets[].name)' > liste.txt
           TAG="$(head -n 1 liste.txt)"
-          ASSET="$(tail -n +2 liste.txt \
-            | grep -Ei "$ATTENDU" \
-            | grep -Eiv "$EXCLU" \
-            | grep -Ei '\.zip$' \
-            | head -n 1 || true)"
+          ASSET="$(tail -n +2 liste.txt | grep -Ei "$ATTENDU" | grep -Ei '\.zip$' | head -n 1 || true)"
           if [ -z "$ASSET" ]; then
             echo "::error::aucune archive de moteur pour ${{ matrix.label }} dans $TAG"
             tail -n +2 liste.txt
@@ -125,7 +116,12 @@ jobs:
           # tantôt sous un sous-dossier de build.
           mkdir -p engine/flat
           ( cd engine && unzip -o -q -j "$ASSET" -d flat )
-          test -f engine/flat/sd -o -f engine/flat/sd.exe
+          # Le nom a changé en amont : les publications récentes livrent
+          # `sd-cli`, plus aucun `sd`. On vérifie ce qui existe vraiment
+          # plutôt que ce qu'on espérait trouver.
+          ls -1 engine/flat
+          test -f engine/flat/sd-cli -o -f engine/flat/sd-cli.exe \
+            -o -f engine/flat/sd -o -f engine/flat/sd.exe
 
       # Le paquet ne contient que ce qui tourne chez l'utilisateur : le
       # manifeste, la compétence, l'interface, la configuration MCP, le serveur
@@ -139,10 +135,13 @@ jobs:
           cp plugin.json SKILL.md README.md LICENSE bundle/
           cp -r dist mcp bundle/
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" bundle/bin/
-          mkdir -p bundle/bin/sd
-          cp engine/flat/* bundle/bin/sd/
+          if [ -d engine/flat ]; then
+            mkdir -p bundle/bin/sd
+            cp engine/flat/* bundle/bin/sd/
+            test -f bundle/bin/sd/sd-cli -o -f bundle/bin/sd/sd-cli.exe \
+              -o -f bundle/bin/sd/sd -o -f bundle/bin/sd/sd.exe
+          fi
           test -f bundle/bin/${{ matrix.binary }}
-          test -f bundle/bin/sd/sd -o -f bundle/bin/sd/sd.exe
           test -f bundle/plugin.json
           test -f bundle/dist/ui.js
           test -f bundle/dist/marketplace.json
@@ -193,9 +192,21 @@ jobs:
             unzip -l "$archive" | grep -q "dist/marketplace.json"
             unzip -l "$archive" | grep -q "mcp/mcp.json"
             unzip -l "$archive" | grep -q "bin/locaryn-image-mcp"
-            # Le moteur doit être là : une extension d'image qui ne génère pas
-            # est une extension qui ne sert à rien.
-            unzip -l "$archive" | grep -Eq "bin/sd/sd(\.exe)?$"
+          done
+
+      # Le moteur doit être là où l'amont en publie un : une extension d'image
+      # livrée sans moteur ne génère rien, et personne ne s'en aperçoit avant
+      # de l'avoir installée. macOS Intel fait exception — stable-diffusion.cpp
+      # ne publie plus pour cette architecture.
+      - name: Vérifier le moteur livré
+        run: |
+          set -euo pipefail
+          for archive in out/*.zip; do
+            case "$archive" in
+              *macos-x86_64*) continue ;;
+            esac
+            unzip -l "$archive" | grep -Eq "bin/sd/sd-cli(\.exe)?$" \
+              || { echo "::error::$archive ne contient pas le moteur"; exit 1; }
           done
 
       - uses: actions/upload-artifact@v7
