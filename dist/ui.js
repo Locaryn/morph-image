@@ -73,7 +73,7 @@
   }
 
   /** La version du paquet, affichée dans le panneau. */
-  var PANEL_VERSION = "2.1.0";
+  var PANEL_VERSION = "2.2.0";
 
   /** Les éléments qui perdent à être coupés en deux. Ceux des versions
    *  précédentes sont visés aussi : ce script sert à les rattraper. */
