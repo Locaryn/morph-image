@@ -27,11 +27,14 @@
   var PANEL_STYLE = [
     "locaryn-image-panel .locaryn-gen-split{",
     "  max-width:1680px;",
-    "  grid-template-columns:minmax(320px,0.9fr) minmax(0,1fr);",
+    "  grid-template-columns:minmax(320px,1fr) minmax(0,1fr);",
     "}",
     "locaryn-image-panel .locaryn-gen-controls{",
     "  display:grid;",
-    "  grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));",
+    // 240 px, pas 270 : dans le Studio la colonne fait un peu moins de la
+    // moitié d'une fenêtre de 1400 px, et trente pixels de trop suffisaient à
+    // la faire retomber en colonne unique là où deux tenaient.
+    "  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));",
     "  align-content:start;",
     "  gap:14px;",
     "}",
