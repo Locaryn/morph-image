@@ -43,6 +43,89 @@
 
   var WIDE_STYLE = "grid-column:1/-1;";
 
+  var CANVAS_STYLE = "display:flex;flex-direction:column;gap:14px;min-width:0";
+
+  /** La version du paquet, affichée dans le panneau. */
+  var PANEL_VERSION = "2.0.4";
+
+  /** Les éléments qui perdent à être coupés en deux. Ceux des versions
+   *  précédentes sont visés aussi : ce script sert à les rattraper. */
+  var WIDE_SELECTOR = [
+    ".locaryn-gen-wide",
+    ".locaryn-gen-tabs",
+    ".locaryn-gen-advanced-toggle",
+    ".locaryn-gen-advanced-panel",
+    ".locaryn-gen-error",
+    ".locaryn-gen-generate-btn"
+  ].join(",");
+
+  /** Poser la disposition sur ce qui est déjà à l'écran.
+   *
+   *  Un élément personnalisé ne se redéfinit pas : quand l'hôte a déjà
+   *  enregistré une version précédente de ce panneau, c'est elle qui rend, et
+   *  rien de ce qui est écrit ici n'atteint la page — on met le paquet à jour
+   *  et l'interface ne bouge pas. Ce script-ci s'exécute quand même. Il
+   *  corrige donc ce que l'autre a produit, au lieu d'attendre un
+   *  redémarrage que rien n'annonce.
+   *
+   *  Idempotent : quand c'est bien cette version qui rend, il réécrit à
+   *  l'identique ce qu'elle a déjà posé. */
+  function stampLayout() {
+    var panels = document.querySelectorAll("locaryn-image-panel,locaryn-image-gen-panel");
+    for (var i = 0; i < panels.length; i += 1) {
+      var panel = panels[i];
+      var split = panel.querySelector(".locaryn-gen-split");
+      if (!split) continue;
+      if (split.getAttribute("style") !== SPLIT_STYLE) split.setAttribute("style", SPLIT_STYLE);
+      var columns = split.children;
+      if (columns[0] && columns[0].getAttribute("style") !== CONTROLS_STYLE) {
+        columns[0].setAttribute("style", CONTROLS_STYLE);
+      }
+      // Comparer avant d'écrire : l'observateur qui appelle cette fonction
+      // réagit à toute mutation, et une écriture inconditionnelle se
+      // rappellerait elle-même sans fin.
+      if (columns[1] && columns[1].getAttribute("style") !== CANVAS_STYLE) {
+        columns[1].setAttribute("style", CANVAS_STYLE);
+      }
+      // La version qui a réellement posé cette disposition. Sans elle, une
+      // capture d'écran ne dit pas quel code rend, et on cherche un défaut de
+      // mise en page là où il n'y a qu'un paquet resté en arrière.
+      var tabs = columns[0] ? columns[0].querySelector(".locaryn-gen-tabs") : null;
+      if (tabs) {
+        tabs.style.alignItems = "center";
+        var badge = tabs.querySelector("[data-locaryn-image-version]");
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "locaryn-gen-hint";
+          badge.setAttribute("data-locaryn-image-version", "");
+          badge.style.marginLeft = "auto";
+          badge.style.whiteSpace = "nowrap";
+          badge.title = "Version du paquet plugin-image qui rend ce panneau";
+          tabs.appendChild(badge);
+        }
+        if (badge.textContent !== "v" + PANEL_VERSION) badge.textContent = "v" + PANEL_VERSION;
+      }
+      var wide = columns[0] ? columns[0].querySelectorAll(WIDE_SELECTOR) : [];
+      for (var j = 0; j < wide.length; j += 1) {
+        if (wide[j].parentElement !== columns[0]) continue;
+        if (wide[j].style.gridColumn !== "1 / -1") wide[j].style.gridColumn = "1/-1";
+      }
+    }
+  }
+
+  /** Le panneau se réécrit entièrement à chaque rendu : observer le document
+   *  est le seul moyen de reprendre la main après coup. */
+  function watchLayout() {
+    stampLayout();
+    if (window.__locarynImageLayoutWatcher) return;
+    var observer = new MutationObserver(function () {
+      stampLayout();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.__locarynImageLayoutWatcher = observer;
+  }
+
+
   /** Les proportions, en multiples de la résolution native du modèle : rendre
    *  un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le calcul
    *  pour une image moins bonne. */
@@ -786,7 +869,7 @@
         '">' +
         '<div class="locaryn-gen-tabs" style="' +
         WIDE_STYLE +
-        '">' +
+        'align-items:center">' +
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
@@ -921,7 +1004,9 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col" style="display:flex;flex-direction:column;gap:14px;min-width:0">' +
+        '<div class="locaryn-gen-col" style="' +
+        CANVAS_STYLE +
+        '">' +
         '<section class="locaryn-gen-block locaryn-gen-canvas">' +
         body +
         "</section>" +
@@ -1135,5 +1220,13 @@
 
   if (!customElements.get("locaryn-image-panel")) {
     customElements.define("locaryn-image-panel", ImageGenPanel);
+  }
+
+  // Après la définition : si l'hôte tient déjà une classe plus ancienne, c'est
+  // elle qui rendra, et seul ce rattrapage lui donnera la bonne disposition.
+  if (document.body) {
+    watchLayout();
+  } else {
+    document.addEventListener("DOMContentLoaded", watchLayout);
   }
 })();
