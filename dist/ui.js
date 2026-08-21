@@ -15,46 +15,33 @@
     return window.locaryn || window.LocarynPluginAPI || null;
   }
 
-  /** La mise en page du panneau, apportée par le panneau.
+  /** La mise en page du panneau, portée par ses propres nœuds.
    *
    *  Le reste de son style vient de l'application — couleurs, cartes, boutons
    *  suivent ainsi le thème sans être recopiés. Mais la disposition de ses
-   *  propres blocs le regarde, et une colonne unique de six blocs empilés
-   *  laissait les bords de l'écran vides tout en obligeant à faire défiler.
-   *  Les blocs se rangent donc par deux dès qu'il y a la place, et retombent
-   *  en colonne quand il n'y en a plus : c'est `auto-fit` qui décide, pas une
-   *  liste de tailles d'écran devinées à l'avance. */
-  var PANEL_STYLE = [
-    "locaryn-image-panel .locaryn-gen-split{",
-    "  max-width:1680px;",
-    "  grid-template-columns:minmax(320px,1fr) minmax(0,1fr);",
-    "}",
-    "locaryn-image-panel .locaryn-gen-controls{",
-    "  display:grid;",
-    // 240 px, pas 270 : dans le Studio la colonne fait un peu moins de la
-    // moitié d'une fenêtre de 1400 px, et trente pixels de trop suffisaient à
-    // la faire retomber en colonne unique là où deux tenaient.
-    "  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));",
-    "  align-content:start;",
-    "  gap:14px;",
-    "}",
-    // Ce qui perd à être coupé en deux : les onglets, les réglages
-    // avancés, le message d'erreur et le bouton qui lance le rendu.
-    "locaryn-image-panel .locaryn-gen-wide{grid-column:1/-1;}",
-    "locaryn-image-panel .locaryn-gen-controls .locaryn-gen-textarea{min-height:132px;}",
-    "@media (max-width:980px){",
-    "  locaryn-image-panel .locaryn-gen-split{grid-template-columns:minmax(0,1fr);}",
-    "}"
-  ].join("");
+   *  blocs le regarde, et une règle injectée ne suffisait pas : l'application
+   *  possède déjà `.locaryn-gen-split`, héritée du temps où la génération
+   *  d'images était une fonction du socle, et c'est elle qui décidait —
+   *  1280 px de large, une colonne de réglages de 380 px, six blocs empilés
+   *  et deux bandes vides sur les côtés. Un style porté par l'élément lui-même
+   *  ne se discute pas, quel que soit l'ordre des feuilles.
+   *
+   *  Deux niveaux, tous deux en `auto-fit` : la page se coupe en deux quand
+   *  elle dépasse 880 px, et la colonne des réglages range ses blocs par deux
+   *  dès qu'elle atteint 480 px. Aucune taille d'écran n'est devinée à
+   *  l'avance ; chaque grille décide d'après la place qu'elle a réellement. */
+  var SPLIT_STYLE =
+    "display:grid;align-items:start;gap:24px;width:100%;max-width:1680px;" +
+    "margin:0 auto;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));";
 
-  /** Posée une fois pour toutes : le panneau est recréé à chaque rendu. */
-  function ensureStyle() {
-    if (document.getElementById("locaryn-image-panel-style")) return;
-    var style = document.createElement("style");
-    style.id = "locaryn-image-panel-style";
-    style.textContent = PANEL_STYLE;
-    document.head.appendChild(style);
-  }
+  /* `max(240px,45%)` borne le nombre de pistes à deux : au-delà, 45 % trois
+     fois dépasse la largeur disponible. En dessous de 480 px, le plancher de
+     240 px reprend la main et la colonne redevient unique. */
+  var CONTROLS_STYLE =
+    "display:grid;align-content:start;gap:14px;min-width:0;" +
+    "grid-template-columns:repeat(auto-fit,minmax(min(100%,max(240px,45%)),1fr));";
+
+  var WIDE_STYLE = "grid-column:1/-1;";
 
   /** Les proportions, en multiples de la résolution native du modèle : rendre
    *  un checkpoint Stable Diffusion 1.x en 1024 coûte quatre fois le calcul
@@ -258,7 +245,6 @@
     }
 
     connectedCallback() {
-      ensureStyle();
       this.render();
       this.refreshModels();
     }
@@ -678,7 +664,9 @@
             "</section>";
 
       var advanced = this.showAdvanced
-        ? '<section class="locaryn-gen-advanced-panel locaryn-gen-wide">' +
+        ? '<section class="locaryn-gen-advanced-panel" style="' +
+          WIDE_STYLE +
+          '">' +
           '<div class="locaryn-gen-field">' +
           '<label class="locaryn-gen-label" for="ig-negative">Prompt négatif</label>' +
           '<input type="text" class="locaryn-input" id="ig-negative" placeholder="flou, déformation, basse qualité…" value="' +
@@ -793,8 +781,12 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col locaryn-gen-controls">' +
-        '<div class="locaryn-gen-tabs locaryn-gen-wide">' +
+        '<div class="locaryn-gen-col locaryn-gen-controls" style="' +
+        CONTROLS_STYLE +
+        '">' +
+        '<div class="locaryn-gen-tabs" style="' +
+        WIDE_STYLE +
+        '">' +
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
@@ -825,7 +817,9 @@
             ratios +
             "</div></section>" +
             this.renderSizes()) +
-        '<button type="button" class="locaryn-gen-advanced-toggle locaryn-gen-wide' +
+        '<button type="button" style="' +
+        WIDE_STYLE +
+        '" class="locaryn-gen-advanced-toggle' +
         (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
         '" id="ig-adv"><span>Options avancées</span>' +
         '<span class="locaryn-gen-advanced-summary">' +
@@ -839,11 +833,15 @@
         "</span></button>" +
         advanced +
         (this.error
-          ? '<p class="locaryn-gen-error locaryn-gen-wide">' +
+          ? '<p class="locaryn-gen-error" style="' +
+            WIDE_STYLE +
+            '">' +
             escapeHtml(this.error) +
             "</p>"
           : "") +
-        '<button type="button" class="locaryn-btn-primary locaryn-gen-generate-btn locaryn-gen-wide' +
+        '<button type="button" style="' +
+        WIDE_STYLE +
+        '" class="locaryn-btn-primary locaryn-gen-generate-btn' +
         (busy ? " locaryn-gen-generate-btn-busy" : "") +
         '" id="ig-generate"' +
         (busy || (this.models.length === 0 && !isEdit) ? " disabled" : "") +
@@ -923,7 +921,7 @@
         : "";
 
       return (
-        '<div class="locaryn-gen-col">' +
+        '<div class="locaryn-gen-col" style="display:flex;flex-direction:column;gap:14px;min-width:0">' +
         '<section class="locaryn-gen-block locaryn-gen-canvas">' +
         body +
         "</section>" +
@@ -947,7 +945,9 @@
         : "";
 
       this.innerHTML =
-        '<div class="locaryn-gen-split">' +
+        '<div class="locaryn-gen-split" style="' +
+        SPLIT_STYLE +
+        '">' +
         this.renderControls() +
         this.renderCanvas() +
         "</div>" +
