@@ -1,14 +1,21 @@
 {
   "$schema": "https://locaryn.dev/schema/plugin.json/v0.1",
   "apiVersion": "0.1",
-  "name": "plugin-image",
+  "name": "extension-image",
   "version": "2.2.0",
   "description": "Extension autonome d'image : génération, img2img et retouche ciblée par masque, avec son moteur stable-diffusion.cpp, ses modèles et son interface.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/Locaryn/plugin-image",
-  "repository": "https://github.com/Locaryn/plugin-image",
-  "keywords": ["image-generation", "image-editing", "stable-diffusion", "flux", "z-image", "text-to-image"],
+  "homepage": "https://github.com/Locaryn/extension-image",
+  "repository": "https://github.com/Locaryn/extension-image",
+  "keywords": [
+    "image-generation",
+    "image-editing",
+    "stable-diffusion",
+    "flux",
+    "z-image",
+    "text-to-image"
+  ],
   "permissions": {
     "mcp": {
       "reason": "Lancer le moteur image local fourni par l'extension."
@@ -24,10 +31,15 @@
     }
   },
   "components": {
-    "skills": ["SKILL.md"],
+    "skills": [
+      "SKILL.md"
+    ],
     "mcp": "mcp/mcp.json"
   },
-  "capabilities": ["image-gen", "image-editor"],
+  "capabilities": [
+    "image-gen",
+    "image-editor"
+  ],
   "ui_contributions": {
     "slots": [
       {
