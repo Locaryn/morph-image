@@ -1,13 +1,13 @@
 {
   "$schema": "https://locaryn.dev/schema/plugin.json/v0.1",
   "apiVersion": "0.1",
-  "name": "extension-image",
+  "name": "morph-image",
   "version": "2.2.0",
   "description": "Extension autonome d'image : génération, img2img et retouche ciblée par masque, avec son moteur stable-diffusion.cpp, ses modèles et son interface.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/Locaryn/extension-image",
-  "repository": "https://github.com/Locaryn/extension-image",
+  "homepage": "https://github.com/Locaryn/morph-image",
+  "repository": "https://github.com/Locaryn/morph-image",
   "keywords": [
     "image-generation",
     "image-editing",
