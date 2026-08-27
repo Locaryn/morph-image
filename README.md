@@ -1,4 +1,4 @@
-# Locaryn Plugin: Image (`plugin-image`)
+# Locaryn Plugin: Image (`morph-image`)
 
 Official Locaryn extension for local image generation and editing. The extension
 owns the complete feature: model discovery, model variants, VAE/text-encoder
@@ -59,7 +59,7 @@ VAE decoder is rejected, preventing the `get sd version from file failed` error.
 ## Installation
 
 ```bash
-locaryn plugin install Locaryn/plugin-image
+locaryn plugin install Locaryn/morph-image
 ```
 
 The release bundle includes a platform-specific MCP executable. The extension

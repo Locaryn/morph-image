@@ -1,4 +1,4 @@
-/* plugin-image — panneau Studio.
+/* morph-image — panneau Studio.
  *
  * Rendu dans le document, sans racine fantôme : le panneau hérite du thème et
  * des composants de l'application (`locaryn-card`, `locaryn-btn-*`,
@@ -128,7 +128,7 @@
           badge = document.createElement("span");
           badge.className = "locaryn-gen-hint";
           badge.setAttribute("data-locaryn-image-version", "");
-          badge.title = "Version du paquet plugin-image qui rend ce panneau";
+          badge.title = "Version du paquet morph-image qui rend ce panneau";
           tabs.appendChild(badge);
         }
         put(badge, "marginLeft", "auto");

@@ -1,4 +1,4 @@
-//! Stdio MCP server shipped by plugin-image.
+//! Stdio MCP server shipped by morph-image.
 //! stdout is reserved for JSON-RPC; diagnostics stay out of the protocol.
 
 use locaryn_plugin_image::region_edit::{edit_region, RegionEditArgs};
@@ -42,7 +42,7 @@ async fn handle_request(request: Value) -> Value {
             json!({
                 "protocolVersion": "2025-06-18",
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "plugin-image", "version": VERSION }
+                "serverInfo": { "name": "morph-image", "version": VERSION }
             }),
         ),
         "tools/list" => success(id, tools_list()),
