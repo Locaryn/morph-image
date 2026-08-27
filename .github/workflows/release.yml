@@ -132,7 +132,7 @@ jobs:
           set -euo pipefail
           rm -rf bundle
           mkdir -p bundle/bin
-          cp plugin.json SKILL.md README.md LICENSE bundle/
+          cp morph.json SKILL.md README.md LICENSE bundle/
           cp -r dist mcp bundle/
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" bundle/bin/
           if [ -d engine/flat ]; then
@@ -142,7 +142,7 @@ jobs:
               -o -f bundle/bin/sd/sd -o -f bundle/bin/sd/sd.exe
           fi
           test -f bundle/bin/${{ matrix.binary }}
-          test -f bundle/plugin.json
+          test -f bundle/morph.json
           test -f bundle/dist/ui.js
           test -f bundle/dist/marketplace.json
           test -f bundle/mcp/mcp.json
@@ -171,7 +171,7 @@ jobs:
       - name: Archiver chaque plateforme
         run: |
           set -euo pipefail
-          VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' plugin.json | head -n 1)"
+          VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' morph.json | head -n 1)"
           test -n "$VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           mkdir -p out
@@ -187,7 +187,7 @@ jobs:
           set -euo pipefail
           test "$(ls out/*.zip | wc -l)" -eq 4
           for archive in out/*.zip; do
-            unzip -l "$archive" | grep -q "plugin.json"
+            unzip -l "$archive" | grep -q "morph.json"
             unzip -l "$archive" | grep -q "dist/ui.js"
             unzip -l "$archive" | grep -q "dist/marketplace.json"
             unzip -l "$archive" | grep -q "mcp/mcp.json"

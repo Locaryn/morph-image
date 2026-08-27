@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "image": {
-      "command": "${LOCARYN_PLUGIN_ROOT}/bin/locaryn-image-mcp",
+      "command": "${LOCARYN_MORPH_ROOT}/bin/locaryn-image-mcp",
       "args": [],
       "env": {
         "RUST_LOG": "warn"

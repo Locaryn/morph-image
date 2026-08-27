@@ -156,7 +156,7 @@ pub fn scratch_dir() -> PathBuf {
 
 /// The host injects this path when it launches the plugin MCP server.
 pub fn plugin_root() -> PathBuf {
-    std::env::var_os("LOCARYN_PLUGIN_ROOT")
+    std::env::var_os("LOCARYN_MORPH_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
 }
