@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "2.2.0";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() {
