@@ -8,7 +8,7 @@ description: Generate or edit images with the plugin-owned stable-diffusion.cpp 
 Use the plugin MCP tools rather than application commands:
 
 - `list_image_models` lists installed diffusion checkpoints.
-- `generate_image` renders locally through the extension's stable-diffusion.cpp process.
+- `generate_image` renders locally through the morph's stable-diffusion.cpp process.
 - `edit_image_region` changes one named area of an existing image and leaves the rest
   untouched.
 - `install_image_model` downloads a checkpoint and its companions from HuggingFace. Prefer
@@ -57,7 +57,7 @@ to reword.
 
 If no model is installed, say so and point to the model catalogue. Do not invent a model name.
 
-The extension owns the model catalogue, VAE/text-encoder companions, process invocation,
+The morph owns the model catalogue, VAE/text-encoder companions, process invocation,
 output files and Studio interface. Locaryn itself does not expose an image engine,
 image-generation command or image button in the chat composer. The host renders
-MCP image artifacts returned by this extension directly in the conversation.
+MCP image artifacts returned by this morph directly in the conversation.
