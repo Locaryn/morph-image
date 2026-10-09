@@ -40,6 +40,12 @@
     "image-gen",
     "image-editor"
   ],
+  "gpu": {
+    "tools": {
+      "generate_image": { "produces": "image" },
+      "edit_image_region": { "produces": "image" }
+    }
+  },
   "ui_contributions": {
     "slots": [
       {

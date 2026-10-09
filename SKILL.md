@@ -35,6 +35,23 @@ For `generate_image`, provide:
 - `seed` only to reproduce a previous render exactly;
 - `variants` between 1 and 8 when several alternatives are useful: the weight load and the
   prompt encoding are paid once for the whole batch.
+- `save_to` when the image belongs in a project you are building — an app icon, a logo,
+  illustrations for a page: a path relative to the open project, either a `.png` file
+  (`assets/icon.png`; further variants become `icon-2.png`…) or a folder. Reference that
+  path from the code you write.
+
+## Images for something you are building
+
+When the user asks for an application, a site or a document « with a nice icon / nice
+images », generate those images yourself with `generate_image` and `save_to` — do not leave
+placeholders or ask the user to find pictures. Write one detailed English prompt per asset,
+in a consistent style, with the format the asset needs (`width`/`height` square for an icon,
+wide for a banner).
+
+While an image renders, the application frees the graphics card: the conversation model is
+set aside and reloaded afterwards. Every call is checked first, so a wrong argument comes
+back immediately as an error to fix — but batch what you need: one call with `variants`, or
+consecutive calls, rather than interleaving images with long reasoning.
 
 ## Editing part of an image
 

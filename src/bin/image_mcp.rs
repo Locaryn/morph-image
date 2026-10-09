@@ -97,7 +97,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "generate_image",
-                "description": "Génère ou transforme localement une image avec le moteur du plugin. Rédigez toujours prompt en anglais et en détail, quelle que soit la langue de la demande : ces modèles sont entraînés sur des légendes anglaises. Ne renseignez ni steps ni cfg_scale sans demande explicite — le moteur choisit déjà ce qui convient à la famille du modèle. Omettez model pour suivre le modèle par défaut choisi dans le compte, ou à défaut le premier checkpoint installé.",
+                "description": "Génère ou transforme localement une image avec le moteur du plugin — une illustration demandée, mais aussi les icônes, logos et images d'une application ou d'un site que vous construisez (avec save_to pour les déposer dans le projet). Rédigez toujours prompt en anglais et en détail, quelle que soit la langue de la demande : ces modèles sont entraînés sur des légendes anglaises. Ne renseignez ni steps ni cfg_scale sans demande explicite — le moteur choisit déjà ce qui convient à la famille du modèle. Omettez model pour suivre le modèle par défaut choisi dans le compte, ou à défaut le premier checkpoint installé.",
                 "inputSchema": {
                     "type": "object",
                     "required": ["prompt"],
@@ -117,7 +117,8 @@ fn tools_list() -> Value {
                         "scheduler": { "type": "string", "description": "discrete, karras, exponential, ays… À omettre en temps normal." },
                         "clip_skip": { "type": "integer", "minimum": 1, "maximum": 12, "description": "Couches CLIP ignorées ; 2 sur beaucoup de dérivés SD 1.5. À omettre en temps normal." },
                         "uncensored": { "type": "boolean" },
-                        "variants": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Plusieurs images en un seul rendu : le chargement des poids et l'encodage du prompt ne sont payés qu'une fois." }
+                        "variants": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Plusieurs images en un seul rendu : le chargement des poids et l'encodage du prompt ne sont payés qu'une fois." },
+                        "save_to": { "type": "string", "description": "Où copier l'image dans le projet ouvert, chemin relatif à sa racine : un fichier .png (ex. assets/icon.png ; les variantes suivantes deviennent icon-2.png…) ou un dossier. Pour les icônes, illustrations et images d'une application que vous construisez." }
                     }
                 }
             },
@@ -158,8 +159,12 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
             Ok(json!({ "path": install_runtime(request).await? }))
         }
         "generate_image" => {
+            let a_blanc = is_preflight(&args);
             let request: ImageGenRequest = serde_json::from_value(args)
                 .map_err(|error| format!("paramètres de génération invalides : {error}"))?;
+            if a_blanc {
+                return Ok(locaryn_plugin_image::preflight_image(&request));
+            }
             let result = generate_image(request).await?;
             let mut value = serde_json::to_value(&result).map_err(|error| error.to_string())?;
             value["artifacts"] = json!(result
@@ -173,6 +178,7 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
             Ok(value)
         }
         "edit_image_region" => {
+            let a_blanc = is_preflight(&args);
             // Le dossier de sortie appartient au plugin : l'appelant n'a pas à
             // le connaître, et une extension n'écrit pas où on le lui dit.
             let mut args = args;
@@ -184,6 +190,11 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
             }
             let request: RegionEditArgs = serde_json::from_value(args)
                 .map_err(|error| format!("paramètres de retouche invalides : {error}"))?;
+            if a_blanc {
+                return Ok(locaryn_plugin_image::region_edit::preflight_region(
+                    &request,
+                ));
+            }
             let result = edit_region(request).await?;
             let mut value = serde_json::to_value(&result).map_err(|error| error.to_string())?;
             value["artifacts"] = json!([{ "kind": "image_png", "path": result.path }]);
@@ -191,6 +202,11 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
         }
         _ => Err(format!("outil image inconnu : {name}")),
     }
+}
+
+/// L'hôte demande une vérification à blanc avant de libérer la carte.
+fn is_preflight(args: &Value) -> bool {
+    args.get("__locaryn_preflight").and_then(Value::as_bool) == Some(true)
 }
 
 fn text_content(value: Value) -> Value {

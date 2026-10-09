@@ -62,6 +62,11 @@ pub struct ImageGenRequest {
     pub uncensored: bool,
     #[serde(default = "default_variants")]
     pub variants: u32,
+    /// Où copier le résultat en plus du dossier du plugin : un fichier `.png`
+    /// (`…-2.png` pour les variantes suivantes) ou un dossier. L'hôte rend ce
+    /// chemin absolu (relatif au projet ouvert) avant l'appel.
+    #[serde(default)]
+    pub save_to: Option<String>,
 }
 
 fn default_variants() -> u32 {
@@ -72,6 +77,226 @@ fn default_variants() -> u32 {
 pub struct ImageGenResult {
     pub paths: Vec<PathBuf>,
     pub model: String,
+    /// Les copies demandées par `save_to`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub saved: Vec<PathBuf>,
+}
+
+/// Le rendu tel qu'il partira : modèle, dimensions, échantillonnage, moteur.
+/// Calculé une fois, pour l'appel à blanc comme pour le vrai.
+pub struct ImagePlan {
+    pub selected: String,
+    pub model_path: PathBuf,
+    pub model_name: String,
+    pub width: u32,
+    pub height: u32,
+    pub steps: u32,
+    pub cfg: f32,
+    pub variants: u32,
+    pub binary: PathBuf,
+}
+
+pub fn plan_image(request: &ImageGenRequest) -> Result<ImagePlan, String> {
+    if request.prompt.trim().is_empty() {
+        return Err("le prompt ne peut pas être vide".into());
+    }
+    let selected = request
+        .model
+        .as_deref()
+        .filter(|model| !model.trim().is_empty())
+        .map(str::to_string)
+        .or_else(account_default_model)
+        .or_else(|| list_image_models().into_iter().next())
+        .ok_or_else(|| {
+            "aucun modèle de diffusion installé dans le stockage du plugin : installez-en un depuis le catalogue de modèles (filtre « Génération d'image »)".to_string()
+        })?;
+    let model_path = validate_model_path(&resolve_model_path(&selected)).map_err(|e| {
+        let installes = list_image_models();
+        format!(
+            "{e} — modèles installés : {}",
+            if installes.is_empty() {
+                "aucun".to_string()
+            } else {
+                installes.join(", ")
+            }
+        )
+    })?;
+    let model_name = model_path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| selected.clone());
+    let (family_steps, family_cfg) = default_sampling(&model_name);
+    let native = default_resolution(&model_name);
+    let binary = find_sd_binary().ok_or_else(|| {
+        "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
+            .to_string()
+    })?;
+    Ok(ImagePlan {
+        selected,
+        model_name,
+        width: request.width.map(|v| v.clamp(64, 2048)).unwrap_or(native),
+        height: request.height.map(|v| v.clamp(64, 2048)).unwrap_or(native),
+        steps: request
+            .steps
+            .map(|v| v.clamp(1, 100))
+            .unwrap_or(family_steps),
+        cfg: request
+            .cfg_scale
+            .map(|v| v.clamp(0.1, 30.0))
+            .unwrap_or(family_cfg),
+        variants: request.variants.clamp(1, 8),
+        model_path,
+        binary,
+    })
+}
+
+/// La mémoire vidéo qu'un rendu occupe : les poids du modèle et de ses
+/// compagnons, plus les activations, qui croissent avec la surface. Plafonnée
+/// à la carte : au-delà, le moteur répartit de lui-même (`--auto-fit`).
+pub fn estimated_vram_gb(plan: &ImagePlan, uncensored: bool) -> f32 {
+    let family = classify_model(&plan.model_name);
+    let companions = discover_companions(&models_dir(), family, uncensored);
+    let poids: f32 = weights_gb(&plan.model_path)
+        + [
+            &companions.vae,
+            &companions.llm,
+            &companions.clip_l,
+            &companions.t5xxl,
+        ]
+        .into_iter()
+        .flatten()
+        .map(|p| weights_gb(p))
+        .sum::<f32>();
+    let surface = (plan.width * plan.height) as f32 / (512.0 * 512.0);
+    let besoin = poids + 0.6 + 0.5 * surface;
+    match vram_budget_gb() {
+        Some(carte) => besoin.min(carte),
+        None => besoin,
+    }
+}
+
+/// Une image source se lit-elle, sans rien écrire ?
+fn check_source(source: Option<&str>, role: &str) -> Result<(), String> {
+    let Some(raw) = source.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(());
+    };
+    if raw.starts_with("data:") {
+        decode_data_url(raw)
+            .map(|_| ())
+            .map_err(|e| format!("{role} illisible : {e}"))
+    } else if Path::new(raw).is_file() {
+        Ok(())
+    } else {
+        Err(format!("{role} introuvable : {raw}"))
+    }
+}
+
+/// `save_to` doit viser un `.png` ou un dossier : le moteur écrit du PNG, et
+/// un `.jpg` qui en contiendrait serait un mensonge pour l'application qui
+/// le lira.
+pub fn check_save_to(save_to: Option<&str>) -> Result<(), String> {
+    let Some(raw) = save_to.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(());
+    };
+    let path = Path::new(raw);
+    if !path.is_absolute() {
+        return Err(format!(
+            "« save_to » doit être un chemin absolu (reçu : {raw})"
+        ));
+    }
+    match path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()) {
+        None => Ok(()),
+        Some(ext) if ext == "png" => Ok(()),
+        Some(ext) => Err(format!(
+            "« save_to » vise un fichier .{ext} : le moteur produit du PNG — donnez un nom en .png ou un dossier"
+        )),
+    }
+}
+
+/// Copie les images produites vers `save_to`.
+pub fn save_copies(paths: &[PathBuf], save_to: &str) -> Result<Vec<PathBuf>, String> {
+    let target = Path::new(save_to.trim());
+    let est_fichier = target
+        .extension()
+        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("png"));
+    let mut copies = Vec::new();
+    for (i, source) in paths.iter().enumerate() {
+        let destination = if est_fichier {
+            if i == 0 {
+                target.to_path_buf()
+            } else {
+                let stem = target.file_stem().unwrap_or_default().to_string_lossy();
+                target.with_file_name(format!("{stem}-{}.png", i + 1))
+            }
+        } else {
+            target.join(source.file_name().unwrap_or_default())
+        };
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("dossier {} : {e}", parent.display()))?;
+        }
+        std::fs::copy(source, &destination)
+            .map_err(|e| format!("copie vers {} : {e}", destination.display()))?;
+        copies.push(destination);
+    }
+    Ok(copies)
+}
+
+/// L'appel à blanc demandé par l'hôte avant de libérer la carte : tout ce qui
+/// peut faire échouer le rendu est vérifié ici, sans rien charger.
+pub fn preflight_image(request: &ImageGenRequest) -> serde_json::Value {
+    let verdict = (|| -> Result<serde_json::Value, String> {
+        let plan = plan_image(request)?;
+        check_source(request.input_image.as_deref(), "image source")?;
+        check_source(request.mask_image.as_deref(), "masque")?;
+        if request.mask_image.is_some() && request.input_image.is_none() {
+            return Err(
+                "un masque de retouche demande aussi une image source (input_image)".into(),
+            );
+        }
+        check_save_to(request.save_to.as_deref())?;
+        let scratch = scratch_dir().join("preflight.png");
+        build_args(&SdRequest {
+            model_path: &plan.model_path,
+            models_dir: &models_dir(),
+            prompt: request.prompt.trim(),
+            negative_prompt: request.negative_prompt.as_deref(),
+            width: plan.width,
+            height: plan.height,
+            steps: plan.steps,
+            cfg_scale: plan.cfg,
+            seed: 0,
+            out_file: &scratch,
+            init_image: None,
+            mask: None,
+            strength: 0.75,
+            sampler: request.sampler.as_deref(),
+            scheduler: request.scheduler.as_deref(),
+            clip_skip: request.clip_skip,
+            batch_count: plan.variants,
+            uncensored: request.uncensored,
+            binary: &plan.binary,
+        })?;
+        Ok(serde_json::json!({
+            "ready": true,
+            "vram_gb": estimated_vram_gb(&plan, request.uncensored),
+            "summary": format!(
+                "{}, {}×{}, {} étape(s){}",
+                plan.model_name,
+                plan.width,
+                plan.height,
+                plan.steps,
+                if plan.variants > 1 { format!(", {} images", plan.variants) } else { String::new() }
+            ),
+            "media": {
+                "kind": "image",
+                "count": plan.variants,
+                "width": plan.width,
+                "height": plan.height
+            }
+        }))
+    })();
+    verdict.unwrap_or_else(|problem| serde_json::json!({ "ready": false, "problem": problem }))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -925,42 +1150,17 @@ pub fn account_default_model() -> Option<String> {
 }
 
 pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, String> {
-    if request.prompt.trim().is_empty() {
-        return Err("le prompt ne peut pas être vide".into());
-    }
-    let selected = request
-        .model
-        .as_deref()
-        .filter(|model| !model.trim().is_empty())
-        .map(str::to_string)
-        .or_else(account_default_model)
-        .or_else(|| list_image_models().into_iter().next())
-        .ok_or_else(|| {
-            "aucun modèle de diffusion installé dans le stockage du plugin".to_string()
-        })?;
-    let model_path = validate_model_path(&resolve_model_path(&selected))?;
-    let model_name = model_path
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| selected.clone());
-    let (family_steps, family_cfg) = default_sampling(&model_name);
-    let steps = request
-        .steps
-        .map(|value| value.clamp(1, 100))
-        .unwrap_or(family_steps);
-    let cfg = request
-        .cfg_scale
-        .map(|value| value.clamp(0.1, 30.0))
-        .unwrap_or(family_cfg);
-    let native = default_resolution(&model_name);
-    let width = request
-        .width
-        .map(|value| value.clamp(64, 2048))
-        .unwrap_or(native);
-    let height = request
-        .height
-        .map(|value| value.clamp(64, 2048))
-        .unwrap_or(native);
+    check_save_to(request.save_to.as_deref())?;
+    let ImagePlan {
+        selected,
+        model_path,
+        width,
+        height,
+        steps,
+        cfg,
+        binary,
+        ..
+    } = plan_image(&request)?;
 
     let output_dir = generated_images_dir();
     std::fs::create_dir_all(&output_dir).map_err(|e| format!("dossier de sortie : {e}"))?;
@@ -975,10 +1175,6 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
         return Err("un masque de retouche demande aussi une image source".into());
     }
     let models = models_dir();
-    let binary = find_sd_binary().ok_or_else(|| {
-        "le moteur image du plugin est introuvable. Installez le runtime depuis l'extension."
-            .to_string()
-    })?;
     let args = build_args(&SdRequest {
         model_path: &model_path,
         models_dir: &models,
@@ -1050,9 +1246,21 @@ pub async fn generate_image(request: ImageGenRequest) -> Result<ImageGenResult, 
             let _ = std::fs::remove_file(path);
         }
     }
+    let paths = result?;
+    // Le moteur a fini : son processus est sorti et la carte est rendue.
+    let saved = match request
+        .save_to
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        Some(cible) => save_copies(&paths, cible)?,
+        None => Vec::new(),
+    };
     Ok(ImageGenResult {
-        paths: result?,
+        paths,
         model: selected,
+        saved,
     })
 }
 
@@ -1358,6 +1566,48 @@ async fn download_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn save_to_png_or_directory_only() {
+        assert!(check_save_to(None).is_ok());
+        let dossier = std::env::temp_dir().join("locaryn-save-to");
+        assert!(check_save_to(Some(dossier.to_str().unwrap())).is_ok());
+        assert!(check_save_to(Some(dossier.join("icon.png").to_str().unwrap())).is_ok());
+        assert!(check_save_to(Some(dossier.join("icon.jpg").to_str().unwrap())).is_err());
+        assert!(check_save_to(Some("relatif/icon.png")).is_err());
+    }
+
+    #[test]
+    fn variants_are_copied_with_numbered_names() {
+        let root = temp_dir("save-copies");
+        let a = root.join("img_1.png");
+        let b = root.join("img_1_1.png");
+        std::fs::write(&a, b"a").unwrap();
+        std::fs::write(&b, b"b").unwrap();
+        let cible = root.join("projet").join("assets").join("icon.png");
+        let copies = save_copies(&[a, b], cible.to_str().unwrap()).unwrap();
+        assert_eq!(copies[0], cible);
+        assert!(copies[1].ends_with("icon-2.png"));
+        assert_eq!(std::fs::read(&copies[1]).unwrap(), b"b");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn preflight_refuses_without_model_and_says_why() {
+        let verdict = preflight_image(&ImageGenRequest {
+            prompt: "a lighthouse".into(),
+            model: Some("modele-qui-n-existe-pas.gguf".into()),
+            ..serde_json::from_value(serde_json::json!({ "prompt": "x" })).unwrap()
+        });
+        assert_eq!(verdict["ready"], false);
+        assert!(verdict["problem"]
+            .as_str()
+            .unwrap()
+            .contains("modèles installés"));
+        let vide =
+            preflight_image(&serde_json::from_value(serde_json::json!({ "prompt": " " })).unwrap());
+        assert_eq!(vide["ready"], false);
+    }
 
     /// Ce que coûtait le placement systématique : un SD 1.5 quantifié tient
     /// largement sur une carte de 6 Gio, et l'envoyer quand même en RAM

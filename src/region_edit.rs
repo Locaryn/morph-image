@@ -330,6 +330,62 @@ pub struct RegionEditArgs {
     pub strength: Option<f32>,
 }
 
+/// L'appel à blanc de l'hôte : mode, zone, couleur ou prompt, image source,
+/// modèle pour un remplacement — sans lancer CLIPSeg ni le moteur.
+pub fn preflight_region(args: &RegionEditArgs) -> serde_json::Value {
+    let verdict = (|| -> Result<serde_json::Value, String> {
+        let mode = parse_mode(&args.mode)?;
+        if args.target.trim().is_empty() {
+            return Err("Décrivez la zone à modifier (ex. « le t-shirt »).".into());
+        }
+        let image = args.image.trim();
+        if !image.starts_with("data:") && !std::path::Path::new(image).is_file() {
+            return Err(format!("image introuvable : {image}"));
+        }
+        if find_python().is_none() {
+            return Err(
+                "Python est introuvable : la sélection de zone (CLIPSeg) en a besoin.".into(),
+            );
+        }
+        // CLIPSeg seul : moins d'un giga, il partage la carte sans peine.
+        let mut vram_gb = 0.8_f32;
+        let mut resume = format!("sélection « {} »", args.target.trim());
+        match mode {
+            EditMode::Recolour => {
+                parse_hex_colour(args.color.as_deref().ok_or(
+                    "Choisissez une couleur cible pour une recoloration (color en #RRGGBB).",
+                )?)?;
+            }
+            EditMode::Replace => {
+                let prompt = args.prompt.as_deref().map(str::trim).unwrap_or_default();
+                if prompt.is_empty() {
+                    return Err("Décrivez ce qui doit remplacer la zone (prompt).".into());
+                }
+                let plan = crate::plan_image(&crate::ImageGenRequest {
+                    prompt: prompt.to_string(),
+                    model: args.model.clone(),
+                    steps: args.steps,
+                    cfg_scale: args.cfg_scale,
+                    width: Some(768),
+                    height: Some(768),
+                    ..serde_json::from_value(serde_json::json!({ "prompt": prompt }))
+                        .map_err(|e| e.to_string())?
+                })?;
+                vram_gb += crate::estimated_vram_gb(&plan, false);
+                resume = format!("{resume}, redessinée avec {}", plan.model_name);
+            }
+            EditMode::Preview => {}
+        }
+        Ok(serde_json::json!({
+            "ready": true,
+            "vram_gb": vram_gb,
+            "summary": resume,
+            "media": { "kind": "image", "count": 1 }
+        }))
+    })();
+    verdict.unwrap_or_else(|problem| serde_json::json!({ "ready": false, "problem": problem }))
+}
+
 pub async fn edit_region(args: RegionEditArgs) -> Result<RegionEditResult, String> {
     let mode = parse_mode(&args.mode)?;
     let target = args.target.trim();
