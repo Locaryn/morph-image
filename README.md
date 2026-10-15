@@ -1,6 +1,6 @@
 # Locaryn Plugin: Image (`morph-image`)
 
-Official Locaryn extension for local image generation and editing. The extension
+Official Locaryn morph for local image generation and editing. The morph
 owns the complete feature: model discovery, model variants, VAE/text-encoder
 companions, `stable-diffusion.cpp` invocation, the styled Studio, gallery and
 image lightbox.
@@ -11,7 +11,7 @@ is rendered as an image in the conversation.
 
 ## Architecture
 
-Locaryn only provides the generic extension host and starts the plugin's MCP
+Locaryn only provides the generic morph host and starts the plugin's MCP
 server. The plugin bundle contains:
 
 - `dist/ui.js`: the Studio custom element. It renders in the document, with no
@@ -20,7 +20,7 @@ server. The plugin bundle contains:
   of carrying a stylesheet that ages on its own;
 - `dist/marketplace.json`: the image-model catalogue and the « Génération
   d'image » filter it adds to the application's model catalogue. It declares a
-  `refreshUrl`, so the list keeps updating without reinstalling the extension;
+  `refreshUrl`, so the list keeps updating without reinstalling the morph;
 - `src/bin/locaryn-image-mcp`: the stdio MCP server;
 - `src/lib.rs`: model discovery, downloads, companion validation and the
   stable-diffusion.cpp runtime, including where each part of the weights is
@@ -62,5 +62,5 @@ VAE decoder is rejected, preventing the `get sd version from file failed` error.
 locaryn plugin install Locaryn/morph-image
 ```
 
-The release bundle includes a platform-specific MCP executable. The extension
+The release bundle includes a platform-specific MCP executable. The morph
 asks for MCP, model-storage read/write and network permissions before it starts.
