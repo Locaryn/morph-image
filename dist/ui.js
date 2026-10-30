@@ -73,7 +73,7 @@
   }
 
   /** La version du paquet, affichée dans le panneau. */
-  var PANEL_VERSION = "2.2.0";
+  var PANEL_VERSION = "3.3.1";
 
   /** Les éléments qui perdent à être coupés en deux. Ceux des versions
    *  précédentes sont visés aussi : ce script sert à les rattraper. */
@@ -306,6 +306,49 @@
     if (b && b.ui && b.ui.dispatchAction) b.ui.dispatchAction("navigate", { view: view });
   }
 
+  /** L'interface simplifiée : la personne débute, les réglages fins se taisent. */
+  function simpleUi() {
+    var b = bridge();
+    return !!(b && b.ui && typeof b.ui.mode === "function" && b.ui.mode() === "simple");
+  }
+
+  /** Ce que vaut chaque recommandation, du plus léger au plus lourd, en mots
+   *  simples : la vitesse et la qualité, pas les quantifications. */
+  var PICKS = [
+    { label: "Rapide", plain: "Le plus léger. Idéal pour essayer : une image en une à deux minutes." },
+    { label: "Équilibré", plain: "Plus de détails, toujours raisonnable sur une carte graphique moyenne." },
+    { label: "Plus beau", plain: "Les plus belles images. Plus lourd et plus lent." }
+  ];
+
+  /** La plus petite variante de chaque modèle du catalogue de l'extension,
+   *  rangées par poids. Le catalogue est la seule source : aucun modèle n'est
+   *  écrit en dur ici. */
+  function pickRecommendations(catalog) {
+    var models = catalog && Array.isArray(catalog.models) ? catalog.models : [];
+    return models
+      .map(function (family) {
+        var variants = Array.isArray(family.variants) ? family.variants.slice() : [];
+        variants.sort(function (a, b) {
+          return (a.storageGb || 0) - (b.storageGb || 0);
+        });
+        var v = variants[0];
+        if (!v || typeof v.tag !== "string") return null;
+        return {
+          id: String(family.id || family.name),
+          name: String(family.name || family.id),
+          description: String(family.description || ""),
+          storageGb: Number(v.storageGb || 0),
+          tag: v.tag,
+          downloads: Array.isArray(v.downloads) ? v.downloads : []
+        };
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.storageGb - b.storageGb;
+      })
+      .slice(0, 3);
+  }
+
   function invoke(tool, input) {
     var b = bridge();
     if (!b || !b.tools || !b.tools.invoke) {
@@ -405,11 +448,104 @@
       this.currentResult = null;
       this.gallery = [];
       this.lightbox = null;
+      this.recommended = null;
+      this.installingTag = null;
     }
 
     connectedCallback() {
       this.render();
       this.refreshModels();
+    }
+
+    /** Lire le catalogue livré avec l'extension, une seule fois. */
+    loadRecommendations() {
+      var self = this;
+      if (this.recommended !== null) return;
+      this.recommended = [];
+      var id = this.getAttribute("data-locaryn-extension-id");
+      var host = typeof core !== "undefined" ? core : null;
+      if (!id || !host || typeof host.readExtensionAsset !== "function") return;
+      Promise.resolve(host.readExtensionAsset(id, "dist/marketplace.json"))
+        .then(function (text) {
+          self.recommended = pickRecommendations(JSON.parse(String(text || "{}")));
+          self.render();
+        })
+        .catch(function (error) {
+          console.warn("[morph-image] catalogue illisible :", error);
+        });
+    }
+
+    /** Télécharger un modèle recommandé, sans quitter le panneau. */
+    installRecommended(tag) {
+      var self = this;
+      var b = bridge();
+      var pick = (this.recommended || []).filter(function (r) {
+        return r.tag === tag;
+      })[0];
+      if (!pick) return;
+      if (!b || !b.models || typeof b.models.install !== "function") {
+        openHostView("models");
+        return;
+      }
+      this.installingTag = tag;
+      this.error = null;
+      this.render();
+      Promise.resolve(b.models.install({ tag: pick.tag, downloads: pick.downloads }))
+        .then(function () {
+          return self.refreshModels();
+        })
+        .catch(function (error) {
+          self.error = String((error && error.message) || error);
+        })
+        .then(function () {
+          self.installingTag = null;
+          self.render();
+        });
+    }
+
+    renderRecommendations() {
+      var self = this;
+      var picks = this.recommended || [];
+      if (!picks.length) return "";
+      var simple = simpleUi();
+      var busy = this.installingTag !== null;
+      return (
+        '<div class="locaryn-gen-picks">' +
+        picks
+          .map(function (pick, index) {
+            var meta = PICKS[index] || PICKS[PICKS.length - 1];
+            var mine = self.installingTag === pick.tag;
+            return (
+              '<div class="locaryn-gen-pick' +
+              (index === 0 ? " locaryn-gen-pick-first" : "") +
+              '">' +
+              '<div class="locaryn-gen-pick-head">' +
+              '<span class="locaryn-gen-pick-badge">' +
+              escapeHtml(meta.label) +
+              "</span>" +
+              '<span class="locaryn-gen-pick-size">' +
+              escapeHtml(pick.storageGb.toFixed(1).replace(".", ",")) +
+              " Go</span></div>" +
+              '<strong class="locaryn-gen-pick-name">' +
+              escapeHtml(pick.name) +
+              "</strong>" +
+              '<p class="locaryn-gen-hint">' +
+              escapeHtml(simple ? meta.plain : pick.description) +
+              "</p>" +
+              '<button type="button" class="' +
+              (index === 0 ? "locaryn-btn-primary" : "locaryn-btn-ghost") +
+              ' locaryn-gen-pick-install" data-install="' +
+              escapeHtml(pick.tag) +
+              '"' +
+              (busy ? " disabled" : "") +
+              ">" +
+              (mine ? "Téléchargement…" : "Installer") +
+              "</button></div>"
+            );
+          })
+          .join("") +
+        "</div>"
+      );
     }
 
     /** Appelé par l'hôte quand l'extension a été mise à jour sous nos pieds. */
@@ -614,22 +750,56 @@
 
     // ── Rendu ──────────────────────────────────────────────────────────────
 
+    /** Mode simple sans modèle : seule l'étape d'installation s'affiche. */
+    renderSetup() {
+      if (!this.isLoadingModels) this.loadRecommendations();
+      var picks = this.renderRecommendations();
+      var body = picks
+        ? picks
+        : '<p class="locaryn-field-hint">' + (this.isLoadingModels ? "Recherche…" : "Aucun modèle proposé pour l'instant.") + "</p>";
+      return (
+        '<div class="locaryn-gen-setup">' +
+        '<span class="locaryn-gen-label">Une dernière étape</span>' +
+        '<h2 class="locaryn-gen-setup-title">Choisissez comment dessiner</h2>' +
+        '<p class="locaryn-field-hint">' +
+        "Un modèle est le « cerveau » qui dessine. Il se télécharge une fois, puis tout se fait sur votre ordinateur." +
+        "</p>" +
+        body +
+        (this.error ? '<p class="locaryn-gen-error">' + escapeHtml(this.error) + "</p>" : "") +
+        "</div>"
+      );
+    }
+
     renderModelBlock() {
       var self = this;
+      var simple = simpleUi();
+      // Mode simple : un seul modèle, choisi d'office — rien à sélectionner.
+      if (simple && this.models.length > 0) return "";
       if (this.models.length === 0) {
+        if (!this.isLoadingModels) this.loadRecommendations();
+        var picks = this.renderRecommendations();
         return (
-          '<section class="locaryn-gen-block">' +
+          '<section class="locaryn-gen-block locaryn-gen-wide">' +
           '<div class="locaryn-gen-block-head">' +
-          '<span class="locaryn-gen-label">Modèle de diffusion</span>' +
+          '<span class="locaryn-gen-label">' +
+          (simple ? "Choisissez un modèle pour commencer" : "Modèle de diffusion") +
+          "</span>" +
           '<span class="locaryn-tag">' +
-          (this.isLoadingModels ? "Recherche…" : "Aucun") +
+          (this.isLoadingModels ? "Recherche…" : "Aucun installé") +
           "</span></div>" +
-          '<p class="locaryn-field-hint">Les modèles d\'image sont dans le catalogue de modèles, ' +
-          "sous le filtre « Génération d'image ». Ils y restent à jour et s'installent avec les " +
-          "fichiers qui les accompagnent.</p>" +
+          (picks
+            ? '<p class="locaryn-field-hint">' +
+              (simple
+                ? "Un modèle est le « cerveau » qui dessine. Il se télécharge une fois, puis tout se fait sur votre ordinateur."
+                : "Recommandés pour démarrer, du plus léger au plus détaillé. Le catalogue complet est dans le marketplace, filtre « Génération d'image ».") +
+              "</p>" +
+              picks
+            : '<p class="locaryn-field-hint">Les modèles d\'image sont dans le catalogue de modèles, ' +
+              "sous le filtre « Génération d'image ».</p>") +
           '<div class="locaryn-gen-actions" style="justify-content:flex-start">' +
-          '<button type="button" class="locaryn-btn-primary" id="ig-open-catalog">' +
-          "Ouvrir le catalogue</button>" +
+          (simple
+            ? ""
+            : '<button type="button" class="locaryn-btn-ghost" id="ig-open-catalog">Catalogue complet</button>') +
           '<button type="button" class="locaryn-btn-ghost" id="ig-refresh">Chercher à nouveau</button>' +
           "</div></section>"
         );
@@ -678,10 +848,13 @@
         options +
         "</select>" +
         warning +
-        '<div class="locaryn-gen-actions" style="justify-content:flex-start">' +
-        '<button type="button" class="locaryn-btn-ghost" id="ig-refresh">Actualiser</button>' +
-        '<button type="button" class="locaryn-btn-ghost" id="ig-open-catalog">Catalogue</button>' +
-        "</div></section>"
+        (simple
+          ? ""
+          : '<div class="locaryn-gen-actions" style="justify-content:flex-start">' +
+            '<button type="button" class="locaryn-btn-ghost" id="ig-refresh">Actualiser</button>' +
+            '<button type="button" class="locaryn-btn-ghost" id="ig-open-catalog">Catalogue</button>' +
+            "</div>") +
+        "</section>"
       );
     }
 
@@ -791,6 +964,8 @@
       var self = this;
       var busy = this.isGenerating;
       var isEdit = this.mode === "edit";
+      var simple = simpleUi();
+      if (simple && this.mode === "img2img") this.mode = "txt2img";
 
       var ratios = RATIOS.map(function (ratio, index) {
         var on = self.ratio === ratio ? " locaryn-gen-choice-on" : "";
@@ -947,9 +1122,11 @@
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "txt2img" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="txt2img">Texte → Image</button>' +
-        '<button type="button" class="locaryn-gen-tab' +
-        (this.mode === "img2img" ? " locaryn-gen-tab-active" : "") +
-        '" data-mode="img2img">Image → Image</button>' +
+        (simple
+          ? ""
+          : '<button type="button" class="locaryn-gen-tab' +
+            (this.mode === "img2img" ? " locaryn-gen-tab-active" : "") +
+            '" data-mode="img2img">Image → Image</button>') +
         '<button type="button" class="locaryn-gen-tab' +
         (this.mode === "edit" ? " locaryn-gen-tab-active" : "") +
         '" data-mode="edit">Retouche</button>' +
@@ -958,8 +1135,12 @@
         (isEdit
           ? ""
           : '<section class="locaryn-gen-block">' +
-            '<label class="locaryn-gen-label" for="ig-prompt">Description</label>' +
-            '<textarea class="locaryn-textarea locaryn-gen-textarea" id="ig-prompt" rows="5" placeholder="Décrivez l\'image à produire…"' +
+            '<label class="locaryn-gen-label" for="ig-prompt">' +
+            (simple ? "Que voulez-vous voir ?" : "Description") +
+            "</label>" +
+            '<textarea class="locaryn-textarea locaryn-gen-textarea" id="ig-prompt" rows="5" placeholder="' +
+            (simple ? "Une photo d\'un chat qui dort au soleil…" : "Décrivez l\'image à produire…") +
+            '"' +
             (busy ? " disabled" : "") +
             ">" +
             escapeHtml(this.prompt) +
@@ -973,20 +1154,22 @@
             '<div class="locaryn-gen-choices">' +
             ratios +
             "</div></section>" +
-            this.renderSizes()) +
-        '<button type="button" class="locaryn-gen-advanced-toggle' +
-        (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
-        '" id="ig-adv"><span>Options avancées</span>' +
-        '<span class="locaryn-gen-advanced-summary">' +
-        this.width +
-        "×" +
-        this.height +
-        " · " +
-        this.steps +
-        " étapes · guidage " +
-        this.cfgScale +
-        "</span></button>" +
-        advanced +
+            (simple ? "" : this.renderSizes())) +
+        (simple
+          ? ""
+          : '<button type="button" class="locaryn-gen-advanced-toggle' +
+            (this.showAdvanced ? " locaryn-gen-advanced-open" : "") +
+            '" id="ig-adv"><span>Options avancées</span>' +
+            '<span class="locaryn-gen-advanced-summary">' +
+            this.width +
+            "×" +
+            this.height +
+            " · " +
+            this.steps +
+            " étapes · guidage " +
+            this.cfgScale +
+            "</span></button>" +
+            advanced) +
         (this.error
           ? '<p class="locaryn-gen-error">' + escapeHtml(this.error) + "</p>"
           : "") +
@@ -1016,8 +1199,11 @@
           '<div class="locaryn-gen-canvas-inner">' +
           '<div class="locaryn-gen-placeholder"><div class="locaryn-gen-shimmer"></div>' +
           '<div class="locaryn-gen-pulse-ring"></div></div>' +
-          '<p class="locaryn-field-hint">Diffusion en cours sur votre machine : de quelques ' +
-          "secondes à plusieurs minutes selon le modèle.</p>" +
+          '<p class="locaryn-field-hint">' +
+          (simpleUi()
+            ? "Votre ordinateur dessine l'image… cela peut prendre une à deux minutes."
+            : "Diffusion en cours sur votre machine : de quelques secondes à plusieurs minutes selon le modèle.") +
+          "</p>" +
           '<div class="locaryn-gen-progress-bar"><div class="locaryn-gen-progress-fill"></div></div>' +
           "</div>";
       } else if (this.currentResult) {
@@ -1038,7 +1224,7 @@
           '<div class="locaryn-gen-icon">✦</div>' +
           '<p class="locaryn-field-hint">' +
           (this.models.length === 0
-            ? "Installez un modèle depuis le catalogue de modèles pour commencer."
+            ? "Installez un modèle à gauche pour commencer."
             : "Décrivez une image à gauche, puis lancez la génération. Le résultat s'affichera ici.") +
           "</p></div>";
       }
@@ -1094,11 +1280,9 @@
         : "";
 
       this.innerHTML =
-        '<div class="locaryn-gen-split">' +
-        this.renderControls() +
-        this.renderCanvas() +
-        "</div>" +
-        lightbox;
+        simpleUi() && this.models.length === 0
+          ? this.renderSetup()
+          : '<div class="locaryn-gen-split">' + this.renderControls() + this.renderCanvas() + "</div>" + lightbox;
 
       this.bindEvents();
       stampLayout();
@@ -1136,6 +1320,10 @@
       });
       on("#ig-open-catalog", "click", function () {
         openHostView("models");
+      });
+      onAll("[data-install]", "click", function (element) {
+        self.captureInputs();
+        self.installRecommended(element.getAttribute("data-install"));
       });
 
       onAll("[data-mode]", "click", function (element) {
